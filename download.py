@@ -3,12 +3,14 @@ from datahandling import filehandling
 import matplotlib.pyplot as plt
 import matplotlib.image as img
 import cv2
+from tqdm import tqdm as tqdm
 
-data = filehandling("500_e6.csv")
-name_list = data.extract('plateifu')
+data = filehandling("500_e7.csv")
+a = data.extract('plateifu')
+b = data.extract('plateifu',selection='hasjpa')
+name_list = [e for e in tqdm(data.extract('plateifu')) if e not in data.extract('plateifu',selection='hasjpa')]
 # ra_list = data.extract('objra')
 # dec_list = data.extract('objdec')
-
 file_out = open("download.sh","w")
 
 # for (plateifu,ra,dec) in zip(name_list,ra_list,dec_list):
@@ -18,22 +20,24 @@ for i,plateifu in enumerate(name_list[2:]):
     temp = plateifu.replace('-', ' ').split(' ')
     plate = int(temp[0])
     ifu = int(temp[1])
-    ra = data[(plateifu,'objra','float')]
-    dec = data[(plateifu,'objdec','float')]
+    # ra = data[(plateifu,'objra','float')]
+    # dec = data[(plateifu,'objdec','float')]
 
     # manga dap
     # download_path1 = f"/Volumes/SDrive/yenting_pa_alignment/MANGA/SPX-MILESHC-MASTARSSP/manga-{plateifu}-MAPS-SPX-MILESHC-MASTARSSP.fits.gz"
     # download_path1 = f"/Volumes/SDrive/yenting_pa_alignment/MANGA/VOR10-MILESHC-MASTARSSP/manga-{plateifu}-MAPS-VOR10-MILESHC-MASTARSSP.fits.gz"
-    # download_path1 = f"/Volumes/SDrive/yenting_pa_alignment/MANGA/HYB10-MILESHC-MASTARSSP/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
+    download_path1 = f"/Volumes/SDrive/yenting_pa_alignment/MANGA/HYB10-MILESHC-MASTARSSP/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
+    # download_path1 = f"/Volumes/SDrive/yenting_pa_alignment/MANGA/HYB10-MILESHC-MASTARHC2/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARHC2.fits.gz"
     # download_url1 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/spectro/analysis/MPL-11/SPX-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plateifu}-MAPS-SPX-MILESHC-MASTARSSP.fits.gz"
     # download_url1 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/spectro/analysis/MPL-11/VOR10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plateifu}-MAPS-VOR10-MILESHC-MASTARSSP.fits.gz"
-    # download_url1 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/spectro/analysis/MPL-11/HYB10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
-    # file_out.write(f"wget -O {download_path1} {download_url1}\n")
+    download_url1 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/spectro/analysis/MPL-11/HYB10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
+    # download_url1 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/spectro/analysis/MPL-11/HYB10-MILESHC-MASTARHC2/{plate}/{ifu}/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARHC2.fits.gz"
+    file_out.write(f"wget -O {download_path1} {download_url1}\n")
     
     # manga pipe 3dhttps://data.sdss.org/sas/mangawork/manga/sandbox/pipe3d/v3_1_1/3.1.1/10001/manga-10001-12701.Pipe3D.cube.fits.gz
-    download_path1 = f"/Volumes/SDrive/yenting_pa_alignment/MANGA/Pipe3D/manga-{plateifu}.Pipe3D.cube.fits.gz"
-    download_url1 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/sandbox/pipe3d/v3_1_1/3.1.1/{plate}/manga-{plateifu}.Pipe3D.cube.fits.gz"
-    file_out.write(f"wget -O {download_path1} {download_url1}\n")
+    # download_path1 = f"/Volumes/SDrive/yenting_pa_alignment/MANGA/Pipe3D/manga-{plateifu}.Pipe3D.cube.fits.gz"
+    # download_url1 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/sandbox/pipe3d/v3_1_1/3.1.1/{plate}/manga-{plateifu}.Pipe3D.cube.fits.gz"
+    # file_out.write(f"wget -O {download_path1} {download_url1}\n")
 
     # # nvss
     # download_path2 = f"/Volumes/SDrive/yenting_pa_alignment/sauron_and_vla/nvss/name={plateifu}_ra={ra:.3f}_dec={dec:.3f}_nvss.jpg"

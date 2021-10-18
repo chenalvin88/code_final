@@ -35,7 +35,7 @@ from measurejPA_class import jPA
 from kinemetry.kinemetry import kinemetry
 from kinemetry.run_kinemetry_examples import plot_kinemetry_profiles_velocity,plot_kinemetry_maps
 
-def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthreshold=3,dap='SPX',measure='Capellari',para='MaNGA',binning=True):
+def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthreshold=3,dap='SPX',measure='Capellari',para='MaNGA',binning=True,mangadir=None):
     assert source in ['STAR', 'HA', 'O3']
     assert dap in [None,'SPX','HYB10','VOR10'] # GAU & MASTARHC2 or SPX or HYB10 or VOR10
     assert measure in ['Capellari', 'YM', 'KS', 'Kinemetry','None'] # to get kPA
@@ -54,7 +54,7 @@ def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthresho
         'VLASS':1.
     }
 
-    my_decision,ra,dec,jpa = data[(plateifu,'my_decision','str')], data[(plateifu,'objra','float')], data[(plateifu,'objdec','float')], data[(plateifu,'jPA','float')]
+    if measure!='None':my_decision,jpa = data[(plateifu,'my_decision','str')], data[(plateifu,'jPA','float')]
     if plot:
         # Open radio image and plot
         if my_decision in ['first catalog']:radio_image=fits.open(f'/Volumes/SDrive/yenting_pa_alignment/radio_and_optical_images/first/ifu={plateifu}_ra={ra:.3f}_dec={dec:.3f}_first.fits')['Primary'].data
@@ -109,11 +109,8 @@ def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthresho
     output=[plateifu]
 
     # Open MaNGA Maps file. Extract x,y, flux, and STAR velocity.
-    if dap=='SPX' or dap=='HYB10' or dap=='VOR10':
-        galaxy=fits.open(f'/Volumes/SDrive/yenting_pa_alignment/MaNGA/{dap}-MILESHC-MASTARSSP/manga-{plateifu}-MAPS-{dap}-MILESHC-MASTARSSP.fits.gz')
-    elif dap==None:
-        if data[(plateifu,'GAU','int')]==0: galaxy=fits.open('/Volumes/SDrive/yenting_pa_alignment/MaNGA/all_map_DAP/manga-%s-MAPS-HYB10-MILESHC-MASTARHC2.fits' %(plateifu))
-        else: galaxy=fits.open('/Volumes/SDrive/yenting_pa_alignment/MaNGA/all_map_DAP/manga-%s-MAPS-HYB10-GAU-MILESHC.fits' %(plateifu))
+    if mangadir==None:galaxy=fits.open(f'/Volumes/SDrive/yenting_pa_alignment/MaNGA/{dap}-MILESHC-MASTARSSP/manga-{plateifu}-MAPS-{dap}-MILESHC-MASTARSSP.fits.gz')
+    else:galaxy=fits.open(f'{mangadir}/manga-{plateifu}-MAPS-{dap}-MILESHC-MASTARSSP.fits.gz')
 
     if source=='STAR':
         F_map = galaxy['SPX_MFLUX'].data
@@ -148,7 +145,7 @@ def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthresho
         ba = data[(plateifu,'NSA_ELPETRO_BA','float')]
         if np.isnan(p50):
             delta,ba,p50=0,1,V_map.shape[0]/4
-            print('using default rather than nsa values')
+            print(f'{plateifu} using default rather than nsa values')
         xpos = X*np.cos(delta)-Y*np.sin(delta)
         ypos = X*np.sin(delta)+Y*np.cos(delta)
         r = np.sqrt((xpos/ba)**2+ypos**2)/p50

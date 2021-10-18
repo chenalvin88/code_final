@@ -217,15 +217,19 @@ def comparePA(plateifu,pa1,paerr1,pa2,paerr2,err1,err2):
 
     plt.show()
 
-def comparePAdiff(PAdiff1, PAdiff2, label1, label2, title, parameter, ax, binnum=30, setticks=None):
+def comparePAdiff(PAdiff1, PAdiff2, label1, label2, title, parameter, ax, binnum=30, setticks=None, combine=False):
     parameter1 = parameter[~np.isnan(PAdiff1)]
     parameter2 = parameter[~np.isnan(PAdiff2)]
     [dstat,pval] = stats.ks_2samp(parameter1, parameter2)
-    ax.text(0.05,0.1, r'D$_{KS}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
+    if not combine:ax.text(0.05,0.1, r'D$_{KS}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
     ma=np.nanmax(np.concatenate((parameter1,parameter2)))
     mi=np.nanmin(np.concatenate((parameter1,parameter2)))
-    ax.hist(parameter1,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label1+'\n'+r'$\mu$'+f'={np.nanmean(parameter1):.2f}, m={np.nanmedian(parameter1):.2f}')
-    ax.hist(parameter2,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label2+'\n'+r'$\mu$'+f'={np.nanmean(parameter2):.2f}, m={np.nanmedian(parameter2):.2f}')
+    if not combine:
+        ax.hist(parameter1,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label1+'\n'+r'$\mu$'+f'={np.nanmean(parameter1):.2f}, m={np.nanmedian(parameter1):.2f}')
+        ax.hist(parameter2,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label2+'\n'+r'$\mu$'+f'={np.nanmean(parameter2):.2f}, m={np.nanmedian(parameter2):.2f}')
+    else:
+        ax.hist(np.concatenate((parameter1,parameter2)),bins=np.linspace(mi,ma,binnum+1),alpha=0.5)
+
     ax.set_title(title)
     ax.set_ylabel('number of galaxies')
     ax.legend()

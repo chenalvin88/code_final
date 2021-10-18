@@ -17,6 +17,7 @@ from tqdm import tqdm as tqdm
 from plotbin.display_pixels import display_pixels
 import scipy.stats as stats
 from itertools import zip_longest
+import os
 
 #############################################################################
 # initialize
@@ -97,70 +98,93 @@ binsinit = np.linspace(0, 90, binsnum+1)
 apply = [True,True,False,False,False,False,False,False,False,False,False]
 result = None
 
-def kinemetry_result(kPA_range):
-    rad_data = filehandling("/Volumes/SDrive/yenting_pa_alignment/results/kinemetry/VOR10_1/result_rad.csv")
-    pa_data = filehandling("/Volumes/SDrive/yenting_pa_alignment/results/kinemetry/VOR10_1/result_pa.csv")
-    paerr_data = filehandling("/Volumes/SDrive/yenting_pa_alignment/results/kinemetry/VOR10_1/result_paerr.csv")
-    k51_data = filehandling("/Volumes/SDrive/yenting_pa_alignment/results/kinemetry/VOR10_1/result_k51.csv")
-    k51err_data = filehandling("/Volumes/SDrive/yenting_pa_alignment/results/kinemetry/VOR10_1/result_k51err.csv")
-    kinemetry_rad,kinemetry_pa,kinemetry_paerr,kinemetry_k51,kinemetry_k51err=[],[],[],[],[]
-    print('reading kinemetry data...')
-    for plateifu in tqdm(plateifu):
-        if plateifu!='' and data[(plateifu,'kinemetry','int')]==1:
-            rad_kinemetry = [rad_data[(plateifu,str(i),'float')] for i in range(34)]
-            pa_kinemetry = [pa_data[(plateifu,str(i),'float')]%180 for i in range(34)]
-            paerr_kinemetry = [paerr_data[(plateifu,str(i),'float')] if paerr_data[(plateifu,str(i),'float')]<=180 else 180 for i in range(34)]
-            k51_kinemetry = [k51_data[(plateifu,str(i),'float')] for i in range(34)]
-            k51err_kinemetry = [k51err_data[(plateifu,str(i),'float')] for i in range(34)]
-            index_range = abs(np.asarray(rad_kinemetry)-kPA_range*data[(plateifu,'NSA_ELPETRO_TH50_R','float')]).argmin()
-            maxind_kinemetry = abs(np.asarray(rad_kinemetry)-data[(plateifu,'nomial FOV radius (arcsec)','float')]*np.sqrt(3)/2).argmin()
-        if plateifu!='' and data[(plateifu,'kinemetry','int')]==1 and index_range<=maxind_kinemetry:
-            kinemetry_rad.append(rad_kinemetry[index_range])
-            kinemetry_pa.append(pa_kinemetry[index_range])
-            kinemetry_paerr.append(paerr_kinemetry[index_range])
-            kinemetry_k51.append(k51_kinemetry[index_range])
-            kinemetry_k51err.append(k51err_kinemetry[index_range])
-        else:
-            kinemetry_rad.append(np.nan)
-            kinemetry_pa.append(np.nan)
-            kinemetry_paerr.append(np.nan)
-            kinemetry_k51.append(np.nan)
-            kinemetry_k51err.append(np.nan)
-
-    return kinemetry_rad,kinemetry_pa,kinemetry_paerr,kinemetry_k51,kinemetry_k51err
-
 def findscore(datanum,totdatanum,errmax,kPAerr,errlim,k51max,k51,k51lim,rad,kPAkin,kPAks):
     # return 2*datanum/totdatanum-errmax/30-k51max/0.20
     # return 3*datanum/totdatanum-errmax/30-k51max/0.20-np.nanmean(abs(kPAkin-kPAks))/30
     return datanum/totdatanum-errmax/errlim-k51max/k51lim-np.nanmean(abs(kPAkin-kPAks))/90
 
-def optimize(row,kPA_range,binsnum,frombuffer=True,plot='35',ana=True ,directory='1011_2'):
-    if not frombuffer:
-        rad,kPAkin,kPAerr,k51,k51err=[],[],[],[],[]
-        kPAks,pn=[],[]
+def write_buffer_control():
+    data_all = filehandling("all_e8.csv")
+    print('finding radius dependent parameters in all dap catalog')
+    stellarmass_all, o3_lum_all, dn4000_specindex_all, hd_specindex_all, sfr_all = np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan)
+    mangaid_all = np.full_like(data_all.extract('plateifu'), np.nan)
+    h=0.7
+    lumdist = np.array(data_all.extract('LDIST_NSA_Z',tofloat=True))/h
+    for j,plateifu in enumerate(tqdm(data_all.extract('plateifu'))):
+        if data_all[plateifu,'DAPDONE']=='TRUE' and data_all[plateifu,'DAPQUAL','float']==0 and data_all[plateifu,'MANGAID'] not in mangaid_all: #dapdone=True, dapqual=0, mangaid not repeat
+            plate = plateifu.split('-')[0]
+            ifu = plateifu.split('-')[1]
+            path_pipe3d = f"./bufferforfile/manga-{plateifu}.Pipe3D.cube.fits.gz"
+            url_pipe3d = f"--user='sdss' --password='2.5-meters' http://data.sdss.org/sas/mangawork/manga/sandbox/pipe3d/v3_1_1/3.1.1/{plate}/manga-{plateifu}.Pipe3D.cube.fits.gz"
+            print(f"wget -O {path_pipe3d} {url_pipe3d}")
+            os.system(f"wget -O {path_pipe3d} {url_pipe3d}")
+            path_hyb10 = f"./bufferforfile/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
+            url_hyb10 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/spectro/analysis/MPL-11/HYB10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
+            os.system(f"wget -O {path_hyb10} {url_hyb10}")
+            mangaid_all[j]=data_all[plateifu,'MANGAID']
+            for i,kPA_range in enumerate(['1.0','0.5','0.3']):
+                index = kPA(plateifu, data_all,re_criterion_list=[float(kPA_range)],plot=False, source='STAR',dap='HYB10',para='NSA',measure='None',binning=False,snthreshold=0,mangadir='./bufferforfile')[-1]
+                stellarmass_all[i][j] = np.log10(np.sum(10**fits.open(path_pipe3d)['SSP'].data[19][index]))
+                hdu = fits.open(path_hyb10)
+                o3_gflux_map = hdu['EMLINE_GFLUX'].data[16][index]*1e-17 #Oiii-5008 1E-17 erg/s/cm^2/spaxel
+                o3_lum_all[i][j]=np.log10(np.sum(4*np.pi*o3_gflux_map*(lumdist[j]*(3.085678*1e24))**2))
+                dn4000_specindex_all[i][j]=np.median(hdu['SPECINDEX'].data[44][index])
+                hd_specindex_all[i][j]=np.median(hdu['SPECINDEX'].data[21][index])
+                ha_gflux_map = hdu['EMLINE_GFLUX'].data[23][index]*1e-17 #Ha-6564 1E-17 erg/s/cm^2/spaxel
+                sfr_all[i][j]=np.sum(10**(np.log10(4*np.pi*ha_gflux_map*(lumdist[j]*(3.085678*1e24))**2)-41.27))
+            os.system(f"rm {path_pipe3d}")
+            os.system(f"rm {path_hyb10}")
+        table = Table([data_all.extract('plateifu'),mangaid_all,stellarmass_all[0],o3_lum_all[0],dn4000_specindex_all[0],hd_specindex_all[0],sfr_all[0],stellarmass_all[1],o3_lum_all[1],dn4000_specindex_all[1],hd_specindex_all[1],sfr_all[1],stellarmass_all[2],o3_lum_all[2],dn4000_specindex_all[2],hd_specindex_all[2],sfr_all[2]], names=['plateifu','mangaid','stellarmass_1re','o3_lum_1re','dn4000_specindex_1re','hd_specindex_1re','sfr_1re','stellarmass_0.5re','o3_lum_0.5re','dn4000_specindex_0.5re','hd_specindex_0.5re','sfr_0.5re','stellarmass_0.3re','o3_lum_0.3re','dn4000_specindex_0.3re','hd_specindex_0.3re','sfr_0.3re'])
+        ascii.write(table, f'all_control.csv',overwrite=True)
+        
+    # for plateifu in data.extract('plateifu')[3:]:
+    #     found = 0
+    #     print('finding control group of '+e)
+    #     for j,c in enumerate(tqdm(data_all.extract('plateifu'))):
+    #         if c not in ['','8479-12705','8479-9101','8562-6101','9183-3701','11970-6104']:
+    #             index2 = kPA(c, data_all,re_criterion_list=[float(kPA_range)],plot=False, source='STAR',dap='HYB10',para='NSA',measure='None',binning=False,snthreshold=0)[-1]
+    #             stellarmass_check = np.log10(np.sum(10**fits.open(f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/Pipe3D/manga-{c}.Pipe3D.cube.fits.gz")['SSP'].data[19][index2]))
+    #             if data_all[c,'NSA_SERSIC_N','float']>0.9*data_all[e,'NSA_SERSIC_N','float'] and data_all[c,'NSA_SERSIC_N','float']<1.1*data_all[e,'NSA_SERSIC_N','float']\
+    #             and data_all[c,'NSA_ELPETRO_TH50_R','float']>0.9*data_all[e,'NSA_ELPETRO_TH50_R','float'] and data_all[c,'NSA_ELPETRO_TH50_R','float']<1.1*data_all[e,'NSA_ELPETRO_TH50_R','float']\
+    #             and 10**(stellarmass_check)>0.9*10**(float(stellarmass_r[i])) and 10**(stellarmass_check)<1.1*10**(float(stellarmass_r[i])):
+    #                 if found==0: stellarmass_control[i], o3_lum_control[i], dn4000_specindex_control[i], hd_specindex_control[i], sfr_control[i] = [],[],[],[],[]
+    #                 found = 1
+    #                 stellarmass_control[i].append(stellarmass_check)
+    #                 hdu = fits.open(f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/HYB10-MILESHC-MASTARSSP/manga-{c}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz")
+    #                 o3_gflux_map = hdu['EMLINE_GFLUX'].data[16][index]*1e-17 #Oiii-5008 1E-17 erg/s/cm^2/spaxel
+    #                 o3_lum_control[i].append(np.log10(np.sum(4*np.pi*o3_gflux_map*(lumdist2[j]*(3.085678*1e24))**2)))
+    #                 dn4000_specindex_control[i].append(np.median(hdu['SPECINDEX'].data[44][index]))
+    #                 hd_specindex_control[i].append(np.median(hdu['SPECINDEX'].data[21][index]))
+    #                 ha_gflux_map = hdu['EMLINE_GFLUX'].data[23][index]*1e-17 #Ha-6564 1E-17 erg/s/cm^2/spaxel
+    #                 sfr_control[i].append(np.sum(10**(np.log10(4*np.pi*ha_gflux_map*(lumdist2[j]*(3.085678*1e24))**2)-41.27)))
+    #     stellarmass_control[i] = np.log10(np.mean(10**np.array(stellarmass_control[i])))
+    #     o3_lum_control[i] = np.log10(np.mean(10**np.array(o3_lum_control[i])))
+    #     dn4000_specindex_control[i] = np.mean(dn4000_specindex_control[i])
+    #     hd_specindex_control[i] = np.mean(hd_specindex_control[i])
+    #     sfr_control[i] = np.mean(sfr_control[i])
+    #     table = Table([plateifu,stellarmass_control,o3_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control], names=['plateifu','stellarmass_control','o3_lum_control','dn4000_specindex_control','hd_specindex_control','sfr_control'])
+    #     ascii.write(table, f'buffer_control.csv',overwrite=True)
+write_buffer_control()
+
+def optimize(row,kPA_range,binsnum,frombuffer=[True,False],plot='35',ana=False ,directory='1017'):
+    if not frombuffer[0]:
+        rad,kPAkin,kPAerr,k51,k51err=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
+        kPAks,pn=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
         for i,e in enumerate(tqdm(plateifu)):
             if e!='':
                 kslist=kPA(e, data,re_criterion_list=[float(kPA_range)],plot=False, source='STAR',dap='VOR10',para='NSA',measure='KS',binning=False,snthreshold=0)
                 kinlist=kPA(e, data,re_criterion_list=[float(kPA_range)],plot=False, source='STAR',dap='VOR10',para='NSA',measure='Kinemetry',binning=False,snthreshold=0)
-                kPAks.append(kslist[1]) 
-                pn.append(kslist[5]) 
-                rad.append(kinlist[1])
-                kPAkin.append(kinlist[2])
-                kPAerr.append(kinlist[3])
-                k51.append(kinlist[4])
-                k51err.append(kinlist[5])
-            else:
-                kPAks.append(np.nan) 
-                pn.append(np.nan) 
-                rad.append(np.nan)
-                kPAkin.append(np.nan)
-                kPAerr.append(np.nan)
-                k51.append(np.nan)
-                k51err.append(np.nan)
+                kPAks[i]=kslist[1]
+                pn[i]=kslist[5]
+                rad[i]=kinlist[1]
+                kPAkin[i]=kinlist[2]
+                kPAerr[i]=kinlist[3]
+                k51[i]=kinlist[4]
+                k51err[i]=kinlist[5]
         table = Table([plateifu,rad,kPAkin,kPAerr,k51,k51err,kPAks,pn], names=['plateifu','rad','kPAkin','kPAerr','k51','k51err','kPAks','pn'])
         ascii.write(table, f'buffer{kPA_range}.csv',overwrite=True)
 
-    if frombuffer:
+    if frombuffer[0]:
         bufferdata=filehandling(f'buffer{kPA_range}.csv')
         rad=bufferdata.extract('rad',tofloat=True)
         kPAkin=bufferdata.extract('kPAkin',tofloat=True)
@@ -249,50 +273,81 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='35',ana=True ,directory
     SPI45	= 'Dn4000  '
     '''
     h=0.7
-    lumdist = np.array(data.extract('LDIST_Z',tofloat=True))
-    stellarmass = np.log10(np.array(data.extract('NSA_ELPETRO_MASS',tofloat=True))*h**2)
-    stellar_sigma_1re = data.extract('STELLAR_SIGMA_1RE',tofloat=True)
-    o3_gflux_1re = np.array([float(e.split(',')[16]) if e!='' else np.nan for e in data.extract('EMLINE_GFLUX_1RE')])
-    o3_lum_1re = np.array([np.log10(4*np.pi*f*1e-17*(d/0.7*(3.085678*1e24))**2) for (f,d) in zip(o3_gflux_1re,lumdist)])
+    stellar_sigma_1re = data.extract('STELLAR_SIGMA_1RE',tofloat=True) # km/s
+    ha_gew_1re = np.array([float(e.split(',')[23]) if e!='' else np.nan for e in data.extract('EMLINE_GEW_1RE')]) #######################!!!!!!!!!!!!!!!!!!!!!!!!!
+    nsa_sersic_n = np.array([e if e!=-9999.0 else np.nan for e in data.extract('NSA_SERSIC_N',tofloat=True)])
+    radio_lum = np.array(data.extract('lum',tofloat=True))
+    radio_morphology = np.array([e if e==1 or e==2 else np.nan for e in data.extract('radio_morphology',tofloat=True)])
+    
+    lumdist = np.array(data.extract('LDIST_NSA_Z',tofloat=True))/h # h-1 Mpc
+    stellarmass = np.log10(np.array(data.extract('NSA_ELPETRO_MASS',tofloat=True))/h**2) # h-2 solar masses
+    o3_gflux_1re = np.array([float(e.split(',')[16]) if e!='' else np.nan for e in data.extract('EMLINE_GFLUX_1RE')])*1e-17 # 10-17 erg/s/cm2
+    o3_lum_1re = np.array([np.log10(4*np.pi*f*(d*(3.085678*1e24))**2) for (f,d) in zip(o3_gflux_1re,lumdist)])
     dn4000_specindex_1re = np.array([float(e.split(',')[44]) if e!='' else np.nan for e in data.extract('SPECINDEX_1RE')])
     hd_specindex_1re = np.array([float(e.split(',')[21]) if e!='' else np.nan for e in data.extract('SPECINDEX_1RE')]) #HDeltaA
-    sfr_1re = data.extract('SFR_1RE',tofloat=True)
-    ha_gew_1re = np.array([float(e.split(',')[23]) if e!='' else np.nan for e in data.extract('EMLINE_GEW_1RE')]) #######################!!!!!!!!!!!!!!!!!!!!!!!!!
-    stellarmass_r,stellar_sigma_r,o3_lum_r,dn4000_specindex_r,hd_specindex_r,sfr_r = [],[],[],[],[],[]
+    sfr_1re = np.array(data.extract('SFR_1RE',tofloat=True))/h**2 # h-2 Msun/yr
+    stellarmass_r,o3_lum_r,dn4000_specindex_r,hd_specindex_r,sfr_r = np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float)
+    stellarmass_control,o3_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control = np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
+    data2 = filehandling('500_e7.csv')
+    lumdist2 = np.array(data2.extract('LDIST_NSA_Z',tofloat=True))/h # h-1 Mpc
+    print(f'finding parameters in {kPA_range} Re')
     for i,e in enumerate(tqdm(plateifu)):
-        if e!='':
-            print('ji')
+        if e not in ['','8479-12705','8479-9101','8562-6101','9183-3701']:
             index = kPA(e, data,re_criterion_list=[float(kPA_range)],plot=False, source='STAR',dap='VOR10',para='NSA',measure='None',binning=False,snthreshold=0)[-1]
-            if e not in ['8479-12705','8479-9101','9183-3701']:
-                stellarmass_r.append(np.log10(np.sum(10**fits.open(f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/Pipe3D/manga-{e}.Pipe3D.cube.fits.gz")['SSP'].data[19][index]))) #stellar mass density dust corrected in 'm_Sun/spaxels^2'
-            else: stellarmass_r.append(np.nan)
-            hdu = fits.open(f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/VOR10-MILESHC-MASTARSSP/manga-{e}-MAPS-VOR10-MILESHC-MASTARSSP.fits.gz")
-            stellar_sigma_r.append(np.average((hdu['STELLAR_VEL'].data[index]-np.average(hdu['STELLAR_VEL'].data[index], weights=hdu['BIN_MFLUX'].data[index]))**2, weights=hdu['BIN_MFLUX'].data[index]))
-            o3_gflux_r = np.sum(hdu['EMLINE_GFLUX'].data[16][index]) #Oiii-5008
-            o3_lum_r.append(np.log10(np.sum(4*np.pi*hdu['EMLINE_GFLUX'].data[16][index]*1e-17*(lumdist[i]/0.7*(3.085678*1e24))**2)))
-            dn4000_specindex_r.append(np.mean(hdu['SPECINDEX'].data[44][index])) #Dn4000
-            hd_specindex_r.append(np.mean(hdu['SPECINDEX'].data[21][index])) #HDeltaA
-            sfr_r.append(np.sum(10**(np.log10(4*np.pi*hdu['EMLINE_GFLUX'].data[23][index]*1e-17*(lumdist[i]/0.7*(3.085678*1e24))**2)-41.27))) #Ha-6564
-        else: 
-            stellarmass_r.append(np.nan)
-            stellar_sigma_r.append(np.nan)
-            o3_lum_r.append(np.nan)
-            dn4000_specindex_r.append(np.nan)
-            hd_specindex_r.append(np.nan)
-            sfr_r.append(np.nan)
+            stellarmass_r[i]=np.log10(np.sum(10**fits.open(f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/Pipe3D/manga-{e}.Pipe3D.cube.fits.gz")['SSP'].data[19][index])) # stellar mass density dust corrected in 'm_Sun/spaxels^2'
+            hdu = fits.open(f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/HYB10-MILESHC-MASTARSSP/manga-{e}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz")
+            o3_gflux_map = hdu['EMLINE_GFLUX'].data[16][index]*1e-17 #Oiii-5008 1E-17 erg/s/cm^2/spaxel
+            o3_lum_r[i]=np.log10(np.sum(4*np.pi*o3_gflux_map*(lumdist[i]*(3.085678*1e24))**2))
+            dn4000_specindex_r[i]=np.median(hdu['SPECINDEX'].data[44][index]) #Dn4000
+            hd_specindex_r[i]=np.median(hdu['SPECINDEX'].data[21][index]) #HDeltaA
+            ha_gflux_map = hdu['EMLINE_GFLUX'].data[23][index]*1e-17 #Ha-6564 1E-17 erg/s/cm^2/spaxel
+            sfr_r[i]=np.sum(10**(np.log10(4*np.pi*ha_gflux_map*(lumdist[i]*(3.085678*1e24))**2)-41.27))
+    
+    # control group
+    if not frombuffer[1]:
+        write_buffer_control()
+    if frombuffer[1]:
+        bufferdata=filehandling(f'buffer_control{kPA_range}.csv')
+        stellarmass_control=bufferdata.extract('stellarmass_control',tofloat=True)
+        o3_lum_control=bufferdata.extract('o3_lum_control',tofloat=True)
+        dn4000_specindex_control=bufferdata.extract('dn4000_specindex_control',tofloat=True)
+        hd_specindex_control=bufferdata.extract('hd_specindex_control',tofloat=True)
+        sfr_control=bufferdata.extract('sfr_control',tofloat=True)
+
+
+    # print(plateifu[[i for i,e in enumerate(-(hd_specindex_1re-hd_specindex_r)) if e < -0.2]])
+    # print('stellar_mass\n',stellarmass[2:7],'\n',stellarmass_r[2:7])
+    # print('o3_lum\n',o3_lum_1re[2:7],'\n',o3_lum_r[2:7])
+    # print('dn4000_specindex\n',dn4000_specindex_1re[2:7],'\n',dn4000_specindex_r[2:7])
+    # print('hd_specindex\n',hd_specindex_1re[2:7],'\n',hd_specindex_r[2:7])
+    # print('sfr\n',sfr_1re[2:7],'\n',sfr_r[2:7])
+    # plt.figure(figsize=(10,7))
+    # plt.suptitle('histograms of (mine-catalog)/catalog')
+    # plt.subplot(231).hist(-(stellarmass-stellarmass_r)/(stellarmass),bins=20)
+    # plt.title('stellarmass')
+    # plt.subplot(232).hist(-(o3_lum_1re-o3_lum_r)/(o3_lum_1re),bins=20)
+    # plt.title('o3_lum')
+    # plt.subplot(233).hist(-(dn4000_specindex_1re-dn4000_specindex_r)/(dn4000_specindex_1re),bins=20)
+    # plt.title('dn4000_specindex')
+    # plt.subplot(234).hist(-(hd_specindex_1re-hd_specindex_r)/(hd_specindex_1re),bins=20)
+    # plt.title('hd_specindex')
+    # plt.subplot(235).hist(-(sfr_1re-sfr_r)/(sfr_1re),bins=20)
+    # plt.title('sfr')
+    # # plt.xlim(-1,0.1)
+    # plt.tight_layout()
     
     ssfr = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_1re,data.extract('NSA_ELPETRO_MASS',tofloat=True))])
     surface_mass_density = np.array([np.log10(mass/np.pi/re**2) for (mass,re) in zip(data.extract('NSA_ELPETRO_MASS',tofloat=True),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
     blackholemass = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_1re,stellar_sigma_1re)])
     oer = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_1re,blackholemass)])
     ssfr_r = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_r,10**(np.array(stellarmass_r)))])
-    surface_mass_density_r = np.array([np.log10(mass/np.pi/re**2) for (mass,re) in zip(10**(np.array(stellarmass_r)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
-    blackholemass_r = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_r,stellar_sigma_r)])
+    surface_mass_density_r = np.array([np.log10(mass/np.pi/(float(kPA_range)*re)**2) for (mass,re) in zip(10**(np.array(stellarmass_r)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
+    blackholemass_r = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_r,stellar_sigma_1re)])
     oer_r = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_r,blackholemass_r)])
-    
-    nsa_sersic_n = np.array([e if e!=-9999.0 else np.nan for e in data.extract('NSA_SERSIC_N',tofloat=True)])
-    radio_lum = np.array(data.extract('lum',tofloat=True))
-    radio_morphology = np.array(data.extract('radio_morphology',tofloat=True))
+    ssfr_control = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_control,10**(np.array(stellarmass_control)))])
+    surface_mass_density_control = np.array([np.log10(mass/np.pi/(float(kPA_range)*re)**2) for (mass,re) in zip(10**(np.array(stellarmass_control)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
+    blackholemass_control = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_control,stellar_sigma_1re)])
+    oer_control = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_control,blackholemass_control)])
 
     halomass = data.extract('Mh_L',tofloat=True)
     objgp = data.extract('objgp(arcsec)',tofloat=True)
@@ -306,28 +361,27 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='35',ana=True ,directory
     
     if '3' in plot:
         global fig3,axes3
-        if row==0:fig3,axes3=plt.subplots(4,3,figsize=(3.5*3,10),sharey='row',sharex='col')
-        cut = np.nanmedian([e for i,e in enumerate(stellarmass) if not np.isnan(PAdiff[i])])
-        PAdiff_original=np.copy(PAdiff)
+        if row==0:fig3,axes3=plt.subplots(4,3,figsize=(4*3,10),sharey='row',sharex='col')
+        cut = np.nanmedian([e for i,e in enumerate(stellarmass_r) if not np.isnan(PAdiff[i])])
         PAdiff_copy1=np.copy(PAdiff)
-        PAdiff_copy1 = newPAdiff(stellarmass,0,cut+1e-3,PAdiff_copy1)
+        PAdiff_copy1 = newPAdiff(stellarmass_r,0,cut,PAdiff_copy1)
         datanum = np.count_nonzero(~np.isnan(PAdiff_copy1))
         hist, bins = np.histogram([x for x in PAdiff_copy1 if not np.isnan(x)],bins=binsinit)
         axes3[0][row].set_title(f'{kPA_range} $R_e$', fontsize=15)
         axes3[0][row].bar(bins[:-1]+45/binsnum,hist, width=90/binsnum,color='green',alpha=0.6)
-        # axes3[0][row].set_title(f'low stellar mass < {cut:.2f}\n{datanum} galaxies')
-        axes3[0][row].text(0.95,0.95, f'low stellar mass < {cut:.2f}\n{datanum} galaxies', fontsize=13, transform=axes3[0][row].transAxes, horizontalalignment='left',verticalalignment='bottom')
+        # axes3[0][row].set_title(f'low stellar mass\n< {cut:.2f}\n{datanum} galaxies')
+        axes3[0][row].text(0.95,0.95, f'low stellar mass\n< {cut:.2f}km/s\n{datanum} galaxies', fontsize=13, transform=axes3[0][row].transAxes, horizontalalignment='right',verticalalignment='top')
         axes3[0][0].set_ylabel('number of galaxies',fontsize=13)
         axes3[1][0].set_ylabel('3D angle probability',fontsize=13)
         if ana:analyticmc(PAdiff_copy1,ax=axes3[1][row])
         
         PAdiff_copy2=np.copy(PAdiff)
-        PAdiff_copy2 = newPAdiff(stellarmass,cut+1e-3,np.inf,PAdiff_copy2)
+        PAdiff_copy2 = newPAdiff(stellarmass_r,cut,np.inf,PAdiff_copy2)
         datanum = np.count_nonzero(~np.isnan(PAdiff_copy2))
         hist, bins = np.histogram([x for x in PAdiff_copy2 if not np.isnan(x)],bins=binsinit)
         axes3[2][row].bar(bins[:-1]+45/binsnum,hist, width=90/binsnum,color='green',alpha=0.6)
-        # axes3[2][row].set_title(f'high stellar mass > {cut:.2f}\n{datanum} galaxies')
-        axes3[2][row].text(0.95,0.95, f'high stellar mass > {cut:.2f}\n{datanum} galaxies', fontsize=13, transform=axes3[2][row].transAxes, horizontalalignment='left',verticalalignment='bottom')
+        # axes3[2][row].set_title(f'high stellar mass\n> {cut:.2f}\n{datanum} galaxies')
+        axes3[2][row].text(0.95,0.95, f'high stellar mass\n> {cut:.2f}km/s\n{datanum} galaxies', fontsize=13, transform=axes3[2][row].transAxes, horizontalalignment='right',verticalalignment='top')
         axes3[2][0].set_ylabel('number of galaxies',fontsize=13)
         axes3[3][row].set_xlabel('angle',fontsize=13)
         axes3[3][0].set_ylabel('3D angle probability',fontsize=13)
@@ -343,27 +397,25 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='35',ana=True ,directory
         # comparePAdiff(PAdiff_original, PAdiff_copy2, 'low stellar mass', 'high stellar mass', f'{np.count_nonzero(~np.isnan(PAdiff_original))}, {np.count_nonzero(~np.isnan(PAdiff_copy2))}', stellarmass, ax=axes3_1[1][row])
         # comparePAdiff(PAdiff_copy1, PAdiff_original, 'low stellar mass', 'high stellar mass', f'{np.count_nonzero(~np.isnan(PAdiff_copy1))}, {np.count_nonzero(~np.isnan(PAdiff_original))}', stellarmass, ax=axes3_1[2][row])
         
-        if kPA_range=='0.3':
-            global fig3_1,axes3_1
-            fig3_1,axes3_1=plt.subplots(3,3,figsize=(5*3,10))
-            write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/stellarmass{kPA_range}.csv', 'w'))
-            write.writerow(['low stellar mass','PA difference','high stellar mass','PA difference'])
-            for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]]):
-                write.writerow(values)
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'sersic index n', nsa_sersic_n, ax=axes3_1[0][0])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(sSFR)',ssfr, ax=axes3_1[0][1])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'Halpha EW',ha_gew_1re, ax=axes3_1[0][2])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'stellar surface mass density',surface_mass_density, ax=axes3_1[1][0])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'OER',oer, ax=axes3_1[1][1])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'radio_morphology',radio_morphology, ax=axes3_1[1][2],binnum=4, setticks=[])
-            axes3_1[1][2].text(0.4,-0.05, 'NaN', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            axes3_1[1][2].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            axes3_1[1][2].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            axes3_1[1][2].text(2.6,-0.05, 'NAT', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', dn4000_specindex_1re, hd_specindex_1re, r'D$_n$(4000)', r'HDelta$_A$', axes3_1[2][0])
-            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', o3_lum_1re, radio_lum, r'log(O[III] luminosity)', r'log($P_{1.4GHz}$)', axes3_1[2][1])
-            axes3_1[2][2].axis('off')
-            fig3_1.tight_layout()
+        global fig3_1,axes3_1
+        fig3_1,axes3_1=[[],[],[]],[[],[],[]]
+        fig3_1[row],axes3_1[row]=plt.subplots(3,3,figsize=(5*3,10))
+        write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/stellarmass{kPA_range}.csv', 'w'))
+        write.writerow(['low stellar mass','PA difference','high stellar mass','PA difference'])
+        for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]]):
+            write.writerow(values)
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, None, None, 'stellar mass', stellarmass_r-stellarmass_control, ax=axes3_1[row][0][0], combine=True)
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'sersic index n', nsa_sersic_n, ax=axes3_1[row][0][1])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'Halpha EW',ha_gew_1re, ax=axes3_1[row][0][2])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axes3_1[row][1][0])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axes3_1[row][1][1])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'OER/OER_control',oer_r/oer_control, ax=axes3_1[row][1][2])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'radio_morphology',radio_morphology, ax=axes3_1[row][2][0],binnum=4, setticks=[])
+        axes3_1[row][2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
+        axes3_1[row][2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
+        comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r/hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$/HDelta$_A$_control', axes3_1[row][2][1])
+        comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', o3_lum_r-o3_lum_control, radio_lum, r'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes3_1[row][2][2])
+        fig3_1[row].tight_layout()
 
     if '4' in plot:
         global fig4,axes4
@@ -425,33 +477,25 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='35',ana=True ,directory
         fig5.tight_layout()
         fig5.subplots_adjust(hspace=0,wspace=0)
 
-        if kPA_range=='0.3':
-            global fig5_1,axes5_1
-            fig5_1,axes5_1=plt.subplots(3,3,figsize=(5*3,10))
-            write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/stellarveldispersion{kPA_range}.csv', 'w'))
-            write.writerow(['low stellar velocity dispersion','PA difference','high stellar velocity dispersion','PA difference'])
-            for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]]):
-                write.writerow(values)
-            write.writerow('low stellar velocity dispersion')
-            write.writerow(plateifu[~np.isnan(PAdiff_copy1)])
-            write.writerow(PAdiff_copy1[~np.isnan(PAdiff_copy1)])
-            write.writerow('high stellar velocity dispersion')
-            write.writerow(plateifu[~np.isnan(PAdiff_copy2)])
-            write.writerow(PAdiff_copy2[~np.isnan(PAdiff_copy2)])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low velocity dispersion', 'high velocity dispersion', 'sersic index n', nsa_sersic_n, ax=axes5_1[0][0])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low velocity dispersion', 'high velocity dispersion', 'log(sSFR)',ssfr, ax=axes5_1[0][1])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low velocity dispersion', 'high velocity dispersion', 'Halpha EW',ha_gew_1re, ax=axes5_1[0][2])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low velocity dispersion', 'high velocity dispersion', 'stellar surface mass density',surface_mass_density, ax=axes5_1[1][0])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low velocity dispersion', 'high velocity dispersion', 'OER',oer, ax=axes5_1[1][1])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low velocity dispersion', 'high velocity dispersion', 'radio_morphology',radio_morphology, ax=axes5_1[1][2],binnum=4, setticks=[])
-            axes5_1[1][2].text(0.4,-0.05, 'NaN', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            axes5_1[1][2].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            axes5_1[1][2].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            axes5_1[1][2].text(2.6,-0.05, 'NAT', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low velocity dispersion', 'high velocity dispersion', '', dn4000_specindex_1re, hd_specindex_1re, r'D$_n$(4000)', r'HDelta$_A$', axes5_1[2][0])
-            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low velocity dispersion', 'high velocity dispersion', '', o3_lum_1re, radio_lum, r'log(O[III] luminosity)', r'log($P_{1.4GHz}$)', axes5_1[2][1])
-            axes5_1[2][2].axis('off')
-            fig5_1.tight_layout()
+        global fig5_1,axes5_1
+        fig5_1,axes5_1=[[],[],[]],[[],[],[]]
+        fig5_1[row],axes5_1[row]=plt.subplots(3,3,figsize=(5*3,10))
+        write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/stellarveldispersion{kPA_range}.csv', 'w'))
+        write.writerow(['low stellar velocity dispersion','PA difference','high stellar velocity dispersion','PA difference'])
+        for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]]):
+            write.writerow(values)
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, None, None, 'stellar velocity dispersion', stellarmass_r-stellarmass_control, ax=axes5_1[row][0][0], combine=True)
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'sersic index n', nsa_sersic_n, ax=axes5_1[row][0][1])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'Halpha EW',ha_gew_1re, ax=axes5_1[row][0][2])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axes5_1[row][1][0])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axes5_1[row][1][1])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'OER/OER_control',oer_r/oer_control, ax=axes5_1[row][1][2])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'radio_morphology',radio_morphology, ax=axes5_1[row][2][0],binnum=4, setticks=[])
+        axes5_1[row][2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
+        axes5_1[row][2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
+        comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r/hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$/HDelta$_A$_control', axes5_1[row][2][1])
+        comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', o3_lum_r-o3_lum_control, radio_lum, r'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes5_1[row][2][2])
+        fig5_1[row].tight_layout()
 
     if '6' in plot and kPA_range=='0.3':
         global fig6,axes6
@@ -601,14 +645,14 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='35',ana=True ,directory
         fig8.tight_layout()
         fig8.subplots_adjust(hspace=0,wspace=0)
     
+    if '3' in plot:fig3_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure3_1_{kPA_range}Re.png')
+    if '5' in plot:fig5_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure5_1_{kPA_range}Re.png')
     if row==2:
         if '1' in plot:fig1.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure1.png')
         if '2' in plot:fig2.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure2.png')
         if '3' in plot:fig3.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure3.png')
-        if '3' in plot:fig3_1.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure3_1.png')
         if '4' in plot:fig4.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure4.png')
         if '5' in plot:fig5.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure5.png')
-        if '5' in plot:fig5_1.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure5_1.png')
         if '6' in plot:fig6.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure6.png')
         if '7' in plot:fig7.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure7.png')
         if '7' in plot:fig7_1.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure7_1.png')
@@ -618,9 +662,9 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='35',ana=True ,directory
     return opterr, optk51
 
 # manual run
-for row,kPA_range in enumerate(['1.0','0.5','0.3']):
-    optimize(row,kPA_range,binsnum)
-plt.show()
+# for row,kPA_range in enumerate(['0.5','0.5','0.3']):
+#     optimize(row,kPA_range,binsnum)
+# plt.show()
 
 
 def plotting(kPA_source,kPA_range,apply,k=None):
