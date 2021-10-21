@@ -105,38 +105,57 @@ def findscore(datanum,totdatanum,errmax,kPAerr,errlim,k51max,k51,k51lim,rad,kPAk
 
 def write_buffer_control():
     data_all = filehandling("all_e8.csv")
-    print('finding radius dependent parameters in all dap catalog')
-    stellarmass_all, o3_lum_all, dn4000_specindex_all, hd_specindex_all, sfr_all = np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan)
-    mangaid_all = np.full_like(data_all.extract('plateifu'), np.nan)
-    h=0.7
-    lumdist = np.array(data_all.extract('LDIST_NSA_Z',tofloat=True))/h
-    for j,plateifu in enumerate(tqdm(data_all.extract('plateifu'))):
-        if data_all[plateifu,'DAPDONE']=='TRUE' and data_all[plateifu,'DAPQUAL','float']==0 and data_all[plateifu,'MANGAID'] not in mangaid_all: #dapdone=True, dapqual=0, mangaid not repeat
-            plate = plateifu.split('-')[0]
-            ifu = plateifu.split('-')[1]
-            path_pipe3d = f"./bufferforfile/manga-{plateifu}.Pipe3D.cube.fits.gz"
-            url_pipe3d = f"--user='sdss' --password='2.5-meters' http://data.sdss.org/sas/mangawork/manga/sandbox/pipe3d/v3_1_1/3.1.1/{plate}/manga-{plateifu}.Pipe3D.cube.fits.gz"
-            print(f"wget -O {path_pipe3d} {url_pipe3d}")
-            os.system(f"wget -O {path_pipe3d} {url_pipe3d}")
-            path_hyb10 = f"./bufferforfile/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
-            url_hyb10 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/spectro/analysis/MPL-11/HYB10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
-            os.system(f"wget -O {path_hyb10} {url_hyb10}")
-            mangaid_all[j]=data_all[plateifu,'MANGAID']
-            for i,kPA_range in enumerate(['1.0','0.5','0.3']):
-                index = kPA(plateifu, data_all,re_criterion_list=[float(kPA_range)],plot=False, source='STAR',dap='HYB10',para='NSA',measure='None',binning=False,snthreshold=0,mangadir='./bufferforfile')[-1]
-                stellarmass_all[i][j] = np.log10(np.sum(10**fits.open(path_pipe3d)['SSP'].data[19][index]))
-                hdu = fits.open(path_hyb10)
-                o3_gflux_map = hdu['EMLINE_GFLUX'].data[16][index]*1e-17 #Oiii-5008 1E-17 erg/s/cm^2/spaxel
-                o3_lum_all[i][j]=np.log10(np.sum(4*np.pi*o3_gflux_map*(lumdist[j]*(3.085678*1e24))**2))
-                dn4000_specindex_all[i][j]=np.median(hdu['SPECINDEX'].data[44][index])
-                hd_specindex_all[i][j]=np.median(hdu['SPECINDEX'].data[21][index])
-                ha_gflux_map = hdu['EMLINE_GFLUX'].data[23][index]*1e-17 #Ha-6564 1E-17 erg/s/cm^2/spaxel
-                sfr_all[i][j]=np.sum(10**(np.log10(4*np.pi*ha_gflux_map*(lumdist[j]*(3.085678*1e24))**2)-41.27))
-            os.system(f"rm {path_pipe3d}")
-            os.system(f"rm {path_hyb10}")
-        table = Table([data_all.extract('plateifu'),mangaid_all,stellarmass_all[0],o3_lum_all[0],dn4000_specindex_all[0],hd_specindex_all[0],sfr_all[0],stellarmass_all[1],o3_lum_all[1],dn4000_specindex_all[1],hd_specindex_all[1],sfr_all[1],stellarmass_all[2],o3_lum_all[2],dn4000_specindex_all[2],hd_specindex_all[2],sfr_all[2]], names=['plateifu','mangaid','stellarmass_1re','o3_lum_1re','dn4000_specindex_1re','hd_specindex_1re','sfr_1re','stellarmass_0.5re','o3_lum_0.5re','dn4000_specindex_0.5re','hd_specindex_0.5re','sfr_0.5re','stellarmass_0.3re','o3_lum_0.3re','dn4000_specindex_0.3re','hd_specindex_0.3re','sfr_0.3re'])
-        ascii.write(table, f'all_control.csv',overwrite=True)
+
+    # print('finding radius dependent parameters in all dap catalog')
+    # stellarmass_all, o3_lum_all, dn4000_specindex_all, hd_specindex_all, sfr_all = np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan),np.full((3,len(data_all.extract('plateifu'))),np.nan)
+    # mangaid_all = np.full_like(data_all.extract('plateifu'), np.nan)
+    # h=0.7
+    # lumdist = np.array(data_all.extract('LDIST_NSA_Z',tofloat=True))/h
+    # for j,plateifu in enumerate(tqdm(data_all.extract('plateifu')[::-1])):
+    #     if data_all[plateifu,'DAPDONE']=='TRUE' and data_all[plateifu,'DAPQUAL','float']==0 and data_all[plateifu,'MANGAID'] not in mangaid_all: #dapdone=True, dapqual=0, mangaid not repeat
+    #         plate = plateifu.split('-')[0]
+    #         ifu = plateifu.split('-')[1]
+    #         path_pipe3d = f"./bufferforfile/manga-{plateifu}.Pipe3D.cube.fits.gz"
+    #         url_pipe3d = f"--user='sdss' --password='2.5-meters' http://data.sdss.org/sas/mangawork/manga/sandbox/pipe3d/v3_1_1/3.1.1/{plate}/manga-{plateifu}.Pipe3D.cube.fits.gz"
+    #         print(f"wget -O {path_pipe3d} {url_pipe3d}")
+    #         os.system(f"wget -O {path_pipe3d} {url_pipe3d}")
+    #         path_hyb10 = f"./bufferforfile/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
+    #         url_hyb10 = f"--user='sdss' --password='2.5-meters' https://data.sdss.org/sas/mangawork/manga/spectro/analysis/MPL-11/HYB10-MILESHC-MASTARSSP/{plate}/{ifu}/manga-{plateifu}-MAPS-HYB10-MILESHC-MASTARSSP.fits.gz"
+    #         os.system(f"wget -O {path_hyb10} {url_hyb10}")
+    #         mangaid_all[j]=data_all[plateifu,'MANGAID']
+    #         for i,kPA_range in enumerate(['1.0','0.5','0.3']):
+    #             index = kPA(plateifu, data_all,re_criterion_list=[float(kPA_range)],plot=False, source='STAR',dap='HYB10',para='NSA',measure='None',binning=False,snthreshold=0,mangadir='./bufferforfile')[-1]
+    #             stellarmass_all[i][j] = np.log10(np.sum(10**fits.open(path_pipe3d)['SSP'].data[19][index]))
+    #             hdu = fits.open(path_hyb10)
+    #             o3_gflux_map = hdu['EMLINE_GFLUX'].data[16][index]*1e-17 #Oiii-5008 1E-17 erg/s/cm^2/spaxel
+    #             o3_lum_all[i][j]=np.log10(np.sum(4*np.pi*o3_gflux_map*(lumdist[j]*(3.085678*1e24))**2))
+    #             dn4000_specindex_all[i][j]=np.median(hdu['SPECINDEX'].data[44][index])
+    #             hd_specindex_all[i][j]=np.median(hdu['SPECINDEX'].data[21][index])
+    #             ha_gflux_map = hdu['EMLINE_GFLUX'].data[23][index]*1e-17 #Ha-6564 1E-17 erg/s/cm^2/spaxel
+    #             sfr_all[i][j]=np.sum(10**(np.log10(4*np.pi*ha_gflux_map*(lumdist[j]*(3.085678*1e24))**2)-41.27))
+    #         os.system(f"rm {path_pipe3d}")
+    #         os.system(f"rm {path_hyb10}")
+    #     table = Table([data_all.extract('plateifu'),mangaid_all,stellarmass_all[0],o3_lum_all[0],dn4000_specindex_all[0],hd_specindex_all[0],sfr_all[0],stellarmass_all[1],o3_lum_all[1],dn4000_specindex_all[1],hd_specindex_all[1],sfr_all[1],stellarmass_all[2],o3_lum_all[2],dn4000_specindex_all[2],hd_specindex_all[2],sfr_all[2]], names=['plateifu','mangaid','stellarmass_1re','o3_lum_1re','dn4000_specindex_1re','hd_specindex_1re','sfr_1re','stellarmass_0.5re','o3_lum_0.5re','dn4000_specindex_0.5re','hd_specindex_0.5re','sfr_0.5re','stellarmass_0.3re','o3_lum_0.3re','dn4000_specindex_0.3re','hd_specindex_0.3re','sfr_0.3re'])
+    #     ascii.write(table, f'all_control.csv',overwrite=True)
         
+    for kPA_range in ['1.0','0.5','0.3']:
+        control_ind = np.full((len(plateifu),10),np.nan,dtype=object)
+        control_data_all=filehandling('all_control_final.csv')
+        for i,e in enumerate(tqdm(plateifu)):
+            count = 0
+            if e!='':
+                p = data_all[e,'NSA_SERSIC_N','float']
+                q = data_all[e,'NSA_ELPETRO_TH50_R','float']
+                r = 10**(control_data_all[e,f'stellarmass_{kPA_range}re','float'])
+            print(f'finding control group parameters in {kPA_range} Re of {e}')
+            for j,c in enumerate(tqdm(data_all.extract('plateifu'))):
+                if e!='' and c!='' and c not in plateifu and np.isnan(control_ind[i][9]) and control_data_all[c,'identified_mangaid']!='nan'\
+                and data_all[c,'NSA_SERSIC_N','float']>0.9*p and data_all[c,'NSA_SERSIC_N','float']<1.1*p\
+                and data_all[c,'NSA_ELPETRO_TH50_R','float']>0.9*q and data_all[c,'NSA_ELPETRO_TH50_R','float']<1.1*q\
+                and 10**(control_data_all[c,f'stellarmass_{kPA_range}re','float'])>0.9*r and 10**(control_data_all[c,f'stellarmass_{kPA_range}re','float'])<1.1*r:
+                    count+=1
+                    control_ind[i][count] = j
+            np.savetxt(f"./bufferforfile/controlindex_{kPA_range}.csv", control_ind, delimiter=",")
     # for plateifu in data.extract('plateifu')[3:]:
     #     found = 0
     #     print('finding control group of '+e)
@@ -162,11 +181,9 @@ def write_buffer_control():
     #     dn4000_specindex_control[i] = np.mean(dn4000_specindex_control[i])
     #     hd_specindex_control[i] = np.mean(hd_specindex_control[i])
     #     sfr_control[i] = np.mean(sfr_control[i])
-    #     table = Table([plateifu,stellarmass_control,o3_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control], names=['plateifu','stellarmass_control','o3_lum_control','dn4000_specindex_control','hd_specindex_control','sfr_control'])
-    #     ascii.write(table, f'buffer_control.csv',overwrite=True)
 write_buffer_control()
 
-def optimize(row,kPA_range,binsnum,frombuffer=[True,False],plot='35',ana=False ,directory='1017'):
+def optimize(row,kPA_range,binsnum,frombuffer=[True,False],plot='35',ana=False ,directory='1021'):
     if not frombuffer[0]:
         rad,kPAkin,kPAerr,k51,k51err=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
         kPAks,pn=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
@@ -287,9 +304,6 @@ def optimize(row,kPA_range,binsnum,frombuffer=[True,False],plot='35',ana=False ,
     hd_specindex_1re = np.array([float(e.split(',')[21]) if e!='' else np.nan for e in data.extract('SPECINDEX_1RE')]) #HDeltaA
     sfr_1re = np.array(data.extract('SFR_1RE',tofloat=True))/h**2 # h-2 Msun/yr
     stellarmass_r,o3_lum_r,dn4000_specindex_r,hd_specindex_r,sfr_r = np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float)
-    stellarmass_control,o3_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control = np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
-    data2 = filehandling('500_e7.csv')
-    lumdist2 = np.array(data2.extract('LDIST_NSA_Z',tofloat=True))/h # h-1 Mpc
     print(f'finding parameters in {kPA_range} Re')
     for i,e in enumerate(tqdm(plateifu)):
         if e not in ['','8479-12705','8479-9101','8562-6101','9183-3701']:
@@ -304,15 +318,15 @@ def optimize(row,kPA_range,binsnum,frombuffer=[True,False],plot='35',ana=False ,
             sfr_r[i]=np.sum(10**(np.log10(4*np.pi*ha_gflux_map*(lumdist[i]*(3.085678*1e24))**2)-41.27))
     
     # control group
+    stellarmass_control,o3_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control = np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
     if not frombuffer[1]:
         write_buffer_control()
     if frombuffer[1]:
-        bufferdata=filehandling(f'buffer_control{kPA_range}.csv')
-        stellarmass_control=bufferdata.extract('stellarmass_control',tofloat=True)
-        o3_lum_control=bufferdata.extract('o3_lum_control',tofloat=True)
-        dn4000_specindex_control=bufferdata.extract('dn4000_specindex_control',tofloat=True)
-        hd_specindex_control=bufferdata.extract('hd_specindex_control',tofloat=True)
-        sfr_control=bufferdata.extract('sfr_control',tofloat=True)
+        stellarmass_control=control_data_all.extract(f'stellarmass_control',tofloat=True)
+        o3_lum_control=control_data_all.extract(f'o3_lum_control',tofloat=True)
+        dn4000_specindex_control=control_data_all.extract(f'dn4000_specindex_control',tofloat=True)
+        hd_specindex_control=control_data_all.extract(f'hd_specindex_control',tofloat=True)
+        sfr_control=control_data_all.extract(f'sfr_control',tofloat=True)
 
 
     # print(plateifu[[i for i,e in enumerate(-(hd_specindex_1re-hd_specindex_r)) if e < -0.2]])
@@ -662,7 +676,7 @@ def optimize(row,kPA_range,binsnum,frombuffer=[True,False],plot='35',ana=False ,
     return opterr, optk51
 
 # manual run
-# for row,kPA_range in enumerate(['0.5','0.5','0.3']):
+# for row,kPA_range in enumerate(['1.0','0.5','0.3']):
 #     optimize(row,kPA_range,binsnum)
 # plt.show()
 
