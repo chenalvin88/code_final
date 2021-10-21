@@ -150,9 +150,9 @@ def write_buffer_control():
             print(f'finding control group parameters in {kPA_range} Re of {e}')
             for j,c in enumerate(tqdm(data_all.extract('plateifu'))):
                 if e!='' and c!='' and c not in plateifu and np.isnan(control_ind[i][9]) and control_data_all[c,'identified_mangaid']!='nan'\
+                and 10**(control_data_all[c,f'stellarmass_{kPA_range}re','float'])>0.9*r and 10**(control_data_all[c,f'stellarmass_{kPA_range}re','float'])<1.1*r\
                 and data_all[c,'NSA_SERSIC_N','float']>0.9*p and data_all[c,'NSA_SERSIC_N','float']<1.1*p\
-                and data_all[c,'NSA_ELPETRO_TH50_R','float']>0.9*q and data_all[c,'NSA_ELPETRO_TH50_R','float']<1.1*q\
-                and 10**(control_data_all[c,f'stellarmass_{kPA_range}re','float'])>0.9*r and 10**(control_data_all[c,f'stellarmass_{kPA_range}re','float'])<1.1*r:
+                and data_all[c,'NSA_ELPETRO_TH50_R','float']>0.9*q and data_all[c,'NSA_ELPETRO_TH50_R','float']<1.1*q:
                     count+=1
                     control_ind[i][count] = j
             np.savetxt(f"./bufferforfile/controlindex_{kPA_range}.csv", control_ind, delimiter=",")
