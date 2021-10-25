@@ -24,6 +24,7 @@ list_plate = data.extract('plateifu')
 list_ra = data.extract('OBJRA',tofloat=True)
 list_dec = data.extract('OBJDEC',tofloat=True)
 list_z = data.extract('Z',tofloat=True)
+list_identified = [e for i,e in enumerate(data.extract('identified_mangaid')) if e!='nan']
 
 vagc=fits.open('/Volumes/SDrive/yenting_pa_alignment/files/post_catalog.dr72all0.fits')
 ra = vagc[1].data['RA']
@@ -54,9 +55,9 @@ def find(i):
 # for i in range(2,100):
 if __name__ == '__main__':
     plateifu, result, distance = [],[],[]
-    for i in range(0,1000,10):
+    for i in range(0,len(list_identified),10):
         a_pool = multiprocessing.Pool()
-        out = a_pool.map(find,range(i,i+10))
+        out = a_pool.map(find,list_identified[i:i+10])
         out = list(map(list, itertools.zip_longest(*out, fillvalue=None)))
         plateifu.extend(out[0])
         result.extend(out[1])
