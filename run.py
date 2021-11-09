@@ -102,7 +102,7 @@ result = None
 def findscore(datanum,totdatanum,errmax,kPAerr,errlim,k51max,k51,k51lim,rad,kPAkin,kPAks):
     # return 2*datanum/totdatanum-errmax/30-k51max/0.20
     # return 3*datanum/totdatanum-errmax/30-k51max/0.20-np.nanmean(abs(kPAkin-kPAks))/30
-    return datanum/totdatanum-errmax/errlim-k51max/k51lim-np.nanmean(abs(kPAkin-kPAks))/90
+    return 3*datanum/totdatanum-errmax/errlim-k51max/k51lim-np.nanmean(abs(kPAkin-kPAks))/90
 
 def radius_dependent_parameters_all():
     print('finding radius dependent parameters in all dap catalog')
@@ -151,11 +151,11 @@ def find_control_index(separate_criterion):
     re_all = data_all.extract('NSA_ELPETRO_TH50_R',tofloat=True)
     mangaid_all = data_all.extract('identified_mangaid')
     for i,e in enumerate((plateifu)):
-        tuning = 7
+        tuning = 1
         i_inall = all_plateifu.index(e)
         startover = 0
         count = 0
-        lim = [[0.9,1.1],[0.9,1.1],[0.9,1.1]]
+        lim = [[0.8,1.2],[0.8,1.2],[0.8,1.2]]
         if e!='':
             r = separate_criterion_all[i_inall]
             p = sersic_n_all[i_inall]
@@ -167,7 +167,7 @@ def find_control_index(separate_criterion):
                     t = sersic_n_all[j]
                     u = re_all[j]
                     if s>lim[0][0]*r and s<lim[0][1]*r and u>lim[1][0]*q and u<lim[1][1]*q and t>lim[2][0]*p and t<lim[2][1]*p\
-                    and c not in plateifu:# and j not in control_ind:
+                    and c not in plateifu and j not in control_ind[i]:
                         control_ind[i][count] = j
                         count+=1
                 if j==len(all_plateifu)-1:
@@ -176,15 +176,15 @@ def find_control_index(separate_criterion):
                     # lim[1] = [0.9-startover*0.05,1.1+startover*0.05]
                     # lim[2] = [0.9-startover*0.05,1.1+startover*0.05]
                 if count==control_group_size:break
-            if count==control_group_size or startover==tuning-1:break
+            if count==control_group_size or startover==tuning:break
         if e!='' and count!=5:
             if separate_criterion=='mass':print(f'separated by {separate_criterion}, {e}, has {mass_all[i_inall],np.log10(r/0.7**2),p,q}')
             if separate_criterion=='svd':print(f'separated by {separate_criterion}, {e}, has {r,p,q}')
-            print(f'started over {startover} times, has {count} control samples, lim are {lim[0], lim[1], lim[2]}')
+            print(f'started over {startover} time, has {count} control sample, lim are {lim[0], lim[1], lim[2]}')
     return control_ind
 # find_control_index()
 
-def optimize(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,directory='1025'):
+def optimize(row,kPA_range,binsnum,frombuffer=True,plot='12',ana=True,find_dependencies=False,directory='1103'):
     if not frombuffer:
         rad,kPAkin,kPAerr,k51,k51err=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
         kPAks,pn=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
@@ -215,7 +215,7 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,directory=
     
     errmaxlist,k51maxlist,scorelist=[],[],[]
     errlim=np.nanpercentile(kPAerr,100)
-    # k51lim=np.nanpercentile(k51,100)
+    # k51lim=np.nanpercentile(k51,80)
     k51lim=np.nanmax([e for i,e in enumerate(k51) if e/k51err[i]>3])
     for errmax in np.linspace(0,90,50):
         for k51max in np.linspace(0,1,50):
@@ -296,6 +296,7 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,directory=
     nsa_sersic_n = np.array([e if e!=-9999.0 else np.nan for e in data.extract('NSA_SERSIC_N',tofloat=True)])
     radio_lum = np.array(data.extract('lum',tofloat=True))
     radio_morphology = np.array([e if e==1 or e==2 else np.nan for e in data.extract('radio_morphology',tofloat=True)])
+    # radio_morphology = np.array([e if (e==1 or e==2) and data.extract('conf',tofloat=True)[i]==1 else np.nan for i,e in enumerate(data.extract('radio_morphology',tofloat=True))])
     
     lumdist = np.array(data.extract('LDIST_NSA_Z',tofloat=True))/h # h-1 Mpc
     stellarmass = np.log10(np.array(data.extract('NSA_ELPETRO_MASS',tofloat=True))/h**2) # h-2 solar masses
@@ -370,23 +371,23 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,directory=
         cut = np.nanmedian([e for i,e in enumerate(stellarmass) if not np.isnan(PAdiff[i])])
         PAdiff_copy1=np.copy(PAdiff)
         PAdiff_copy1 = newPAdiff(stellarmass,0,cut,PAdiff_copy1)
-        datanum = np.count_nonzero(~np.isnan(PAdiff_copy1))
+        datanum1 = np.count_nonzero(~np.isnan(PAdiff_copy1))
         hist, bins = np.histogram([x for x in PAdiff_copy1 if not np.isnan(x)],bins=binsinit)
         axes3[0][row].set_title(f'{kPA_range} $R_e$', fontsize=15)
         axes3[0][row].bar(bins[:-1]+45/binsnum,hist, width=90/binsnum,color='green',alpha=0.6)
-        # axes3[0][row].set_title(f'low stellar mass\n< {cut:.2f}\n{datanum} galaxies')
-        axes3[0][row].text(0.95,0.95, f'low stellar mass < {cut:.2f}\n{datanum} galaxies', fontsize=13, transform=axes3[0][row].transAxes, horizontalalignment='right',verticalalignment='top')
+        # axes3[0][row].set_title(f'low stellar mass\n< {cut:.2f}\n{datanum1} galaxies')
+        axes3[0][row].text(0.95,0.95, f'low stellar mass < {cut:.2f}\n{datanum1} galaxies', fontsize=13, transform=axes3[0][row].transAxes, horizontalalignment='right',verticalalignment='top')
         axes3[0][0].set_ylabel('number of galaxies',fontsize=13)
         axes3[1][0].set_ylabel('3D angle probability',fontsize=13)
         if ana:analyticmc(PAdiff_copy1,ax=axes3[1][row])
         
         PAdiff_copy2=np.copy(PAdiff)
         PAdiff_copy2 = newPAdiff(stellarmass,cut,np.inf,PAdiff_copy2)
-        datanum = np.count_nonzero(~np.isnan(PAdiff_copy2))
+        datanum2 = np.count_nonzero(~np.isnan(PAdiff_copy2))
         hist, bins = np.histogram([x for x in PAdiff_copy2 if not np.isnan(x)],bins=binsinit)
         axes3[2][row].bar(bins[:-1]+45/binsnum,hist, width=90/binsnum,color='green',alpha=0.6)
-        # axes3[2][row].set_title(f'high stellar mass\n> {cut:.2f}\n{datanum} galaxies')
-        axes3[2][row].text(0.95,0.95, f'high stellar mass > {cut:.2f}\n{datanum} galaxies', fontsize=13, transform=axes3[2][row].transAxes, horizontalalignment='right',verticalalignment='top')
+        # axes3[2][row].set_title(f'high stellar mass\n> {cut:.2f}\n{datanum2} galaxies')
+        axes3[2][row].text(0.95,0.95, f'high stellar mass > {cut:.2f}\n{datanum2} galaxies', fontsize=13, transform=axes3[2][row].transAxes, horizontalalignment='right',verticalalignment='top')
         axes3[2][0].set_ylabel('number of galaxies',fontsize=13)
         axes3[3][row].set_xlabel('angle',fontsize=13)
         axes3[3][0].set_ylabel('3D angle probability',fontsize=13)
@@ -402,43 +403,48 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,directory=
         # comparePAdiff(PAdiff_original, PAdiff_copy2, 'low stellar mass', 'high stellar mass', f'{np.count_nonzero(~np.isnan(PAdiff_original))}, {np.count_nonzero(~np.isnan(PAdiff_copy2))}', stellarmass, ax=axes3_1[1][row])
         # comparePAdiff(PAdiff_copy1, PAdiff_original, 'low stellar mass', 'high stellar mass', f'{np.count_nonzero(~np.isnan(PAdiff_copy1))}, {np.count_nonzero(~np.isnan(PAdiff_original))}', stellarmass, ax=axes3_1[2][row])
         
-        # control group
-        stellarmass_control,o3_lum_control,ha_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control = np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype='float64'),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
-        control_index = find_control_index(separate_criterion='mass')
-        for i,e in enumerate(plateifu):
-            if not np.isnan(control_index[i][0]):
-                control_index_i = np.array(control_index[i],dtype=int)
-                stellarmass_control[i] = np.log10(np.mean(10**np.array(stellarmass_all[control_index[i].astype(int)])))
-                o3_lum_control[i] = np.log10(np.mean(10**np.array(o3_lum_all[control_index[i].astype(int)])))
-                ha_lum_control[i] = np.log10(np.mean(10**np.array(ha_lum_all[control_index[i].astype(int)])))
-                dn4000_specindex_control[i] = np.mean(dn4000_specindex_all[control_index[i].astype(int)])
-                hd_specindex_control[i] = np.mean(hd_specindex_all[control_index[i].astype(int)])
-                sfr_control[i] = np.mean(sfr_all[control_index[i].astype(int)])
-        ssfr_control = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_control,10**(np.array(stellarmass_control)))])
-        surface_mass_density_control = np.array([np.log10(mass/np.pi/(float(kPA_range)*re)**2) for (mass,re) in zip(10**(np.array(stellarmass_control)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
-        blackholemass_control = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_control,stellar_sigma_1re)])
-        oer_control = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_control,blackholemass_control)])
-        
-        global fig3_1,axes3_1
-        fig3_1,axes3_1=[[],[],[]],[[],[],[]]
-        fig3_1[row],axes3_1[row]=plt.subplots(3,3,figsize=(5*3,10))
-        write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/stellarmass{kPA_range}.csv', 'w'))
-        write.writerow(['low stellar mass','PA difference','stellar mass','high stellar mass','PA difference','stellar mass'])
-        for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],stellarmass_r[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]],stellarmass_r[~np.isnan(PAdiff_copy2)]):
-            write.writerow(values)
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, None, None, 'stellar mass', stellarmass_r, ax=axes3_1[row][0][0], combine=True)
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'sersic index n', nsa_sersic_n, ax=axes3_1[row][0][1])
-        # comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'Halpha EW',ha_gew_1re, ax=axes3_1[row][0][2])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(Ha luminosity) - log(Ha luminosity)_control',ha_lum_r-ha_lum_control, ax=axes3_1[row][0][2])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axes3_1[row][1][0])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axes3_1[row][1][1])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'OER/OER_control',oer_r/oer_control, ax=axes3_1[row][1][2])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'radio_morphology',radio_morphology, ax=axes3_1[row][2][0],binnum=4, setticks=[])
-        axes3_1[row][2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
-        axes3_1[row][2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
-        comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axes3_1[row][2][1])
-        comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', o3_lum_r-o3_lum_control, radio_lum, 'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes3_1[row][2][2])
-        fig3_1[row].tight_layout()
+        if find_dependencies:
+            # control group
+            stellarmass_control,o3_lum_control,ha_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control = np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype='float64'),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
+            control_index = find_control_index(separate_criterion='mass')
+            for i,e in enumerate(plateifu):
+                control_index_i = np.array(list(filter(lambda a: ~np.isnan(a), control_index[i])))
+                if not np.isnan(control_index[i][0]) and len(control_index_i)>2:
+                    stellarmass_control[i] = np.log10(np.mean(10**np.array(stellarmass_all[control_index_i])))
+                    o3_lum_control[i] = np.log10(np.mean(10**np.array(o3_lum_all[control_index_i])))
+                    ha_lum_control[i] = np.log10(np.mean(10**np.array(ha_lum_all[control_index_i])))
+                    dn4000_specindex_control[i] = np.mean(dn4000_specindex_all[control_index_i])
+                    hd_specindex_control[i] = np.mean(hd_specindex_all[control_index_i])
+                    sfr_control[i] = np.mean(sfr_all[control_index_i])
+            ssfr_control = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_control,10**(np.array(stellarmass_control)))])
+            surface_mass_density_control = np.array([np.log10(mass/np.pi/(float(kPA_range)*re)**2) for (mass,re) in zip(10**(np.array(stellarmass_control)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
+            blackholemass_control = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_control,stellar_sigma_1re)])
+            oer_control = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_control,blackholemass_control)])
+            
+            global fig3_1,axes3_1
+            fig3_1,axes3_1=[[],[],[]],[[],[],[]]
+            fig3_1[row],axes3_1[row]=plt.subplots(3,3,figsize=(5*3,10))
+            write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/stellarmass{kPA_range}.csv', 'w'))
+            write.writerow(['low stellar mass','PA difference','stellar mass','high stellar mass','PA difference','stellar mass'])
+            for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],stellarmass_r[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]],stellarmass_r[~np.isnan(PAdiff_copy2)]):
+                write.writerow(values)
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'{datanum1}', f'{datanum2}', 'stellar mass', stellarmass_r, ax=axes3_1[row][0][0], combine=False)
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'sersic index n', nsa_sersic_n, ax=axes3_1[row][0][1])
+            # comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'Halpha EW',ha_gew_1re, ax=axes3_1[row][0][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(Ha luminosity) - log(Ha luminosity)_control',ha_lum_r-ha_lum_control, ax=axes3_1[row][0][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axes3_1[row][1][0])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axes3_1[row][1][1])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'OER/OER_control',oer_r/oer_control, ax=axes3_1[row][1][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'radio_morphology',radio_morphology, ax=axes3_1[row][2][0],binnum=4, setticks=[])
+            axes3_1[row][2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
+            axes3_1[row][2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
+            unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy1))], return_counts=True)
+            bin1 = dict(zip(unique, counts))
+            unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy2))], return_counts=True)
+            bin2 = dict(zip(unique, counts))
+            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axes3_1[row][2][1])
+            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', o3_lum_r-o3_lum_control, radio_lum, 'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes3_1[row][2][2])
+            fig3_1[row].tight_layout()
 
     if '4' in plot:
         global fig4,axes4
@@ -500,43 +506,49 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,directory=
         fig5.tight_layout()
         fig5.subplots_adjust(hspace=0,wspace=0)
 
-        # control group
-        stellarmass_control,o3_lum_control,ha_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control = np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
-        control_index = find_control_index(separate_criterion='svd')
-        for i,e in enumerate(plateifu):
-            if not np.isnan(control_index[i][0]):
-                control_index_i = np.array(control_index[i],dtype=int)
-                stellarmass_control[i] = np.log10(np.mean(10**np.array(stellarmass_all[control_index[i].astype(int)])))
-                o3_lum_control[i] = np.log10(np.mean(10**np.array(o3_lum_all[control_index[i].astype(int)])))
-                ha_lum_control[i] = np.log10(np.mean(10**np.array(ha_lum_all[control_index[i].astype(int)])))
-                dn4000_specindex_control[i] = np.mean(dn4000_specindex_all[control_index[i].astype(int)])
-                hd_specindex_control[i] = np.mean(hd_specindex_all[control_index[i].astype(int)])
-                sfr_control[i] = np.mean(sfr_all[control_index[i].astype(int)])
-        ssfr_control = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_control,10**(np.array(stellarmass_control)))])
-        surface_mass_density_control = np.array([np.log10(mass/np.pi/(float(kPA_range)*re)**2) for (mass,re) in zip(10**(np.array(stellarmass_control)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
-        blackholemass_control = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_control,stellar_sigma_1re)])
-        oer_control = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_control,blackholemass_control)])
+        if find_dependencies:
+            # control group
+            stellarmass_control,o3_lum_control,ha_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control = np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
+            control_index = find_control_index(separate_criterion='svd')
+            for i,e in enumerate(plateifu):
+                control_index_i = np.array(list(filter(lambda a: ~np.isnan(a), control_index[i])))
+                if not np.isnan(control_index[i][0]) and len(control_index_i)>2:
+                    control_index_i = np.array(list(filter(lambda a: ~np.isnan(a), control_index[i])))
+                    stellarmass_control[i] = np.log10(np.mean(10**np.array(stellarmass_all[control_index_i])))
+                    o3_lum_control[i] = np.log10(np.mean(10**np.array(o3_lum_all[control_index_i])))
+                    ha_lum_control[i] = np.log10(np.mean(10**np.array(ha_lum_all[control_index_i])))
+                    dn4000_specindex_control[i] = np.mean(dn4000_specindex_all[control_index_i])
+                    hd_specindex_control[i] = np.mean(hd_specindex_all[control_index_i])
+                    sfr_control[i] = np.mean(sfr_all[control_index_i])
+            ssfr_control = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_control,10**(np.array(stellarmass_control)))])
+            surface_mass_density_control = np.array([np.log10(mass/np.pi/(float(kPA_range)*re)**2) for (mass,re) in zip(10**(np.array(stellarmass_control)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
+            blackholemass_control = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_control,stellar_sigma_1re)])
+            oer_control = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_control,blackholemass_control)])
 
-        global fig5_1,axes5_1
-        fig5_1,axes5_1=[[],[],[]],[[],[],[]]
-        fig5_1[row],axes5_1[row]=plt.subplots(3,3,figsize=(5*3,10))
-        write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/stellarveldispersion{kPA_range}.csv', 'w'))
-        write.writerow(['low stellar velocity dispersion','PA difference','high stellar velocity dispersion','PA difference'])
-        for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]]):
-            write.writerow(values)
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, None, None, 'stellar velocity dispersion', stellar_sigma_1re, ax=axes5_1[row][0][0], combine=True)
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'sersic index n', nsa_sersic_n, ax=axes5_1[row][0][1])
-        # comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'Halpha EW',ha_gew_1re, ax=axes5_1[row][0][2])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(Ha luminosity) - log(Ha luminosity)_control',ha_lum_r-ha_lum_control, ax=axes5_1[row][0][2])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axes5_1[row][1][0])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axes5_1[row][1][1])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'OER/OER_control',oer_r/oer_control, ax=axes5_1[row][1][2])
-        comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'radio_morphology',radio_morphology, ax=axes5_1[row][2][0],binnum=4, setticks=[])
-        axes5_1[row][2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
-        axes5_1[row][2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
-        comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axes5_1[row][2][1])
-        comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', o3_lum_r-o3_lum_control, radio_lum, r'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes5_1[row][2][2])
-        fig5_1[row].tight_layout()
+            global fig5_1,axes5_1
+            fig5_1,axes5_1=[[],[],[]],[[],[],[]]
+            fig5_1[row],axes5_1[row]=plt.subplots(3,3,figsize=(5*3,10))
+            write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/stellarveldispersion{kPA_range}.csv', 'w'))
+            write.writerow(['low stellar velocity dispersion','PA difference','high stellar velocity dispersion','PA difference'])
+            for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]]):
+                write.writerow(values)
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, None, None, 'stellar velocity dispersion', stellar_sigma_1re, ax=axes5_1[row][0][0], combine=True)
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'sersic index n', nsa_sersic_n, ax=axes5_1[row][0][1])
+            # comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'Halpha EW',ha_gew_1re, ax=axes5_1[row][0][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(Ha luminosity) - log(Ha luminosity)_control',ha_lum_r-ha_lum_control, ax=axes5_1[row][0][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axes5_1[row][1][0])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axes5_1[row][1][1])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'OER/OER_control',oer_r/oer_control, ax=axes5_1[row][1][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'radio_morphology',radio_morphology, ax=axes5_1[row][2][0],binnum=4, setticks=[])
+            axes5_1[row][2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
+            axes5_1[row][2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
+            unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy1))], return_counts=True)
+            bin1 = dict(zip(unique, counts))
+            unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy2))], return_counts=True)
+            bin2 = dict(zip(unique, counts))
+            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axes5_1[row][2][1])
+            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', o3_lum_r-o3_lum_control, radio_lum, r'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes5_1[row][2][2])
+            fig5_1[row].tight_layout()
 
     if '6' in plot and kPA_range=='0.3':
         global fig6,axes6
@@ -686,8 +698,9 @@ def optimize(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,directory=
         fig8.tight_layout()
         fig8.subplots_adjust(hspace=0,wspace=0)
     
-    if '3' in plot:fig3_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure3_1_{kPA_range}Re.png')
-    if '5' in plot:fig5_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure5_1_{kPA_range}Re.png')
+    if find_dependencies:
+        if '3' in plot:fig3_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure3_1_{kPA_range}Re.png')
+        if '5' in plot:fig5_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure5_1_{kPA_range}Re.png')
     if row==2:
         if '1' in plot:fig1.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure1.png')
         if '2' in plot:fig2.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure2.png')

@@ -12,7 +12,36 @@ from datahandling import filehandling
 from plotbin.display_bins_generators import display_bins_generators,display_pixels
 from scipy import interpolate,stats
 
-
+def tran(filename):
+    data = open(filename)
+    wavelength = []
+    transmission = []
+    for i in data.readlines():
+        wavelength.append(float(i.split()[0]))
+        transmission.append(float(i.split()[1]))
+    return wavelength,transmission
+filename = f"/Users/michaelcheng/Downloads/CFHT_CFHT.U.dat"
+wavelength,transmission = tran(filename)
+plt.plot(wavelength,transmission,label='U band')
+filename = f"/Users/michaelcheng/Downloads/CFHT_CFHT.cfh9402_g'.dat"
+wavelength,transmission = tran(filename)
+plt.plot(wavelength,transmission,label='g\' band')
+filename = f"/Users/michaelcheng/Downloads/CFHT_CFHT.cfh9602_r'.dat"
+wavelength,transmission = tran(filename)
+plt.plot(wavelength,transmission,label='r\' band')
+filename = f"/Users/michaelcheng/Downloads/CFHT_CFHT.cfh9703_i'.dat"
+wavelength,transmission = tran(filename)
+plt.plot(wavelength,transmission,label='i\' band')
+plt.xlim(3000,11000)
+plt.xlabel('Wavelength (A)')
+plt.ylabel('Transmission')
+plt.legend()
+plt.tight_layout()
+# hdu.info()
+# asdf = hdu['DATA_DCBGC'].data[:,20,30]
+# plt.plot(asdf)
+# print(hdu['PRIMARY'].header.keys)
+print('hi')
 
 # data = filehandling("/Volumes/SDrive/yenting_pa_alignment/sauron_and_vla/ATLAS3D.csv")
 # name = data.extract('plateifu')
@@ -26,10 +55,10 @@ from scipy import interpolate,stats
 # plt.show()
 # fits.open(f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/Pipe3D/manga-10214-3703.Pipe3D.cube.fits.gz")['SSP'].data[19] #stellar mass density dust corrected in 'm_Sun/spaxels^2'
 
-filename = f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/VOR10-MILESHC-MASTARSSP/manga-10512-3701-MAPS-VOR10-MILESHC-MASTARSSP.fits.gz"
-hdu = fits.open(filename)
-hdu.info()
-print(hdu['EMLINE_GFLUX'].header.keys)
+# filename = f"/Volumes/SDrive/yenting_pa_alignment/MaNGA/VOR10-MILESHC-MASTARSSP/manga-10512-3701-MAPS-VOR10-MILESHC-MASTARSSP.fits.gz"
+# hdu = fits.open(filename)
+# hdu.info()
+# print(hdu['EMLINE_GFLUX'].header.keys)
 # plt.imshow(hdu['SPX_ELLCOO'].data[1],origin='lower')
 # X=hdu['SPX_SKYCOO'].data[0]
 # Y=hdu['SPX_SKYCOO'].data[1]

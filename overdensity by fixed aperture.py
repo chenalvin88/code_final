@@ -9,6 +9,7 @@ from astropy.coordinates import SkyCoord
 from tqdm.auto import tqdm
 import multiprocessing
 import itertools
+import matplotlib.pyplot as plt
 
 #parameters 
 kpccriterion = 300 #kpc
@@ -54,14 +55,18 @@ def find(i):
 
 # for i in range(2,100):
 if __name__ == '__main__':
-    plateifu, result, distance = [],[],[]
-    for i in range(0,len(list_identified),10):
-        a_pool = multiprocessing.Pool()
-        out = a_pool.map(find,list_identified[i:i+10])
-        out = list(map(list, itertools.zip_longest(*out, fillvalue=None)))
-        plateifu.extend(out[0])
-        result.extend(out[1])
-        distance.extend(out[2])
-        table = Table([plateifu,result,distance], names=['plateifu','count','distance(kpc)'])
-        ascii.write(table, './bufferforfile/300kpc1500cz.csv',overwrite=True)
-        print('hi')
+    # plateifu, result, distance = [],[],[]
+    # for i in range(0,len(list_identified),10):
+    #     a_pool = multiprocessing.Pool()
+    #     out = a_pool.map(find,list_identified[i:i+10])
+    #     out = list(map(list, itertools.zip_longest(*out, fillvalue=None)))
+    #     plateifu.extend(out[0])
+    #     result.extend(out[1])
+    #     distance.extend(out[2])
+    #     table = Table([plateifu,result,distance], names=['plateifu','count','distance(kpc)'])
+    #     ascii.write(table, './bufferforfile/300kpc1500cz.csv',overwrite=True)
+    #     print('hi')
+    plt.figure(figsize=(16,8))
+    plt.scatter(list_ra,list_dec,s=0.1)
+    plt.scatter(ra,dec,s=0.01)
+    plt.show()

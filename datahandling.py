@@ -220,6 +220,8 @@ def comparePA(plateifu,pa1,paerr1,pa2,paerr2,err1,err2):
 def comparePAdiff(PAdiff1, PAdiff2, label1, label2, title, parameter, ax, binnum=30, setticks=None, combine=False):
     parameter1 = parameter[~np.isnan(PAdiff1)]
     parameter2 = parameter[~np.isnan(PAdiff2)]
+    print(parameter1)
+    print(parameter2)
     [dstat,pval] = stats.ks_2samp(parameter1, parameter2)
     if not combine:ax.text(0.05,0.1, r'D$_{KS}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
     ma=np.nanmax(np.concatenate((parameter1,parameter2)))
