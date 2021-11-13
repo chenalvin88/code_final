@@ -35,7 +35,7 @@ from measurejPA_class import jPA
 from kinemetry.kinemetry import kinemetry
 from kinemetry.run_kinemetry_examples import plot_kinemetry_profiles_velocity,plot_kinemetry_maps
 
-def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthreshold=3,dap='SPX',measure='Capellari',para='MaNGA',binning=True,mangadir=None):
+def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthreshold=3,dap='SPX',measure='Capellari',para='NSA',binning=False,mangadir=None):
     assert source in ['STAR', 'HA', 'O3']
     assert dap in [None,'SPX','HYB10','VOR10'] # GAU & MASTARHC2 or SPX or HYB10 or VOR10
     assert measure in ['Capellari', 'YM', 'KS', 'Kinemetry','None'] # to get kPA
@@ -54,7 +54,9 @@ def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthresho
         'VLASS':1.
     }
 
-    if measure!='None':my_decision,jpa = data[(plateifu,'my_decision','str')], data[(plateifu,'jPA','float')]
+    if measure!='None':
+        ra,dec = data[(plateifu,'objra','float')], data[(plateifu,'objdec','float')]
+        my_decision,jpa = data[(plateifu,'my_decision','str')], data[(plateifu,'jPA','float')]
     if plot:
         # Open radio image and plot
         if my_decision in ['first catalog']:radio_image=fits.open(f'/Volumes/SDrive/yenting_pa_alignment/radio_and_optical_images/first/ifu={plateifu}_ra={ra:.3f}_dec={dec:.3f}_first.fits')['Primary'].data
@@ -413,8 +415,8 @@ def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthresho
     return output
 
 if __name__ == '__main__':
-    data = filehandling("500_e6.csv")
-    print(kPA('11755-3701', data,re_criterion_list=[1,0.5,0.3],plot=False,source='STAR',dap='VOR10',para='NSA',measure='KS',binning=False,snthreshold=0))
+    data = filehandling("100_e9.csv")
+    print(kPA('11755-3701', data,re_criterion_list=[1,0.5,0.3],plot=False,source='STAR',dap='VOR10',para='NSA',measure='Kinemetry',binning=False,snthreshold=0))
     plt.show()
     # for et in data.extract('plateifu',selection='hasjpa'):
     #     print(kPA(et, data, source='STAR',re_criterion_list=[0.3,0.5,1],snthreshold=3,dap='SPX',measure=False))

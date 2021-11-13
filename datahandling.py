@@ -85,110 +85,6 @@ class match:
             else:criterion.append(0)
         return criterion
 
-# def glue_images(data,index,nvss,first,vlass,crop_n, crop_f, crop_v,savefig=False,table=False):
-#     list_first=data.extract('first_data')
-#     list_vlass=data.extract('vlass_data')
-#     list_ra=data.extract('objra')
-#     list_dec=data.extract('objdec')
-#     list_firstcatalog=data.extract('POSANG')
-#     hdu = fits.open('D:\\yenting\\NVSS_FIRST_SDSS_MaNGACUBE_galaxies\\nvss\\ifu=%s_ra=%4.3f_dec=%4.3f_nvss.fits' %(list_plate,list_ra,list_dec))
-#     nvss_image=hdu[0].data
-#     if list_first==1:
-#         hdu = fits.open('D:\\yenting\\NVSS_FIRST_SDSS_MaNGACUBE_galaxies\\first\\ifu=%s_ra=%4.3f_dec=%4.3f_first.fits' %(list_plate,list_ra,list_dec))
-#         first_image=hdu[0].data
-#     else:first_image=[[0]]
-#     # if list_vlass==1:
-#     #     hdu = fits.open('D:\\yenting\\NVSS_FIRST_SDSS_MaNGACUBE_galaxies\\vlass\\ifu=%s_ra=%4.3f_dec=%4.3f_vlass.fits' %(list_plate,list_ra,list_dec))
-#     #     vlass_image=hdu[0].data
-#     # else:vlass_image=[[0]]
-#     opticalimg = mpimg.imread('D:\\yenting\\NVSS_FIRST_SDSS_MaNGACUBE_galaxies\\optical\\ifu=%s_ra=%4.3f_dec=%4.3f_optical_image.jpg'%(list_plate,list_ra,list_dec))
-    
-#     # if list_first==1:firstmeasurement = mpimg.imread('D:\\yenting\\results\\measurejPA\\all_first\\ifu=%s_ra=%3.2f_dec=%3.2f_jpa.png'%(list_plate,list_ra,list_dec))
-#     # else:firstmeasurement=[[0]]
-#     # if list_vlass==1:vlassmeasurement = mpimg.imread('D:\\yenting\\results\\measurejPA\\all_vlass\\ifu=%s_ra=%3.2f_dec=%3.2f_jpa.png'%(list_plate,list_ra,list_dec))
-#     # else:vlassmeasurement=[[0]]
-#     if list_first==1:firstandoptical = mpimg.imread('D:\\yenting\\results\\check_source\\first and optical\\ifu=%s_ra=%4.3f_dec=%4.3f_overlay.jpg'%(list_plate,list_ra,list_dec))
-#     else:firstandoptical=[[0]]
-#     if list_vlass==1:vlassandoptical = mpimg.imread('D:\\yenting\\results\\check_source\\vlass and optical\\ifu=%s_ra=%4.3f_dec=%4.3f_overlay.jpg'%(list_plate,list_ra,list_dec))
-#     else:vlassandoptical=[[0]]
-#     #plt.fig()
-#     plt.figure(figsize=(20,9.5))
-#     plt.subplot(2,4,1)
-#     plt.imshow(nvss_image)
-#     plt.ylim(0,nvss_image.shape[1])
-#     plt.title('nvss (not to scale)')
-
-#     plt.subplot(2,4,2)
-#     nvss.append(jPA(index-2, data='nvss', ringsize = 2.5, plott = False, plotf = False, plotsave = False, tablee = False, handmiddle = [], perc = 90, deg = 45, crop=crop_n))
-
-#     if list_first==1:
-#         plt.subplot(2,4,3)
-#         first.append(jPA(index-2, data='first', ringsize = 2.5, plott = False, plotf = False, plotsave = False, tablee = False, handmiddle = [], perc = 90, deg = 45,crop=crop_f))
-        
-#     if list_firstcatalog!='' and list_first==1:
-#         # list_firstcatalog = 90
-#         plt.subplot(2,4,4)
-#         m=first_image.shape[0]
-#         middle = [m/2-0.5,m/2-0.5]
-#         x = np.linspace(-0.5,m-0.5,m)
-#         plt.imshow(first_image)
-#         plt.colorbar()
-#         plt.ylim(-0.5,m-0.5) 
-#         plt.plot(x, math.tan(math.radians(list_firstcatalog+90))*(x-middle[0])+middle[1], color='blue', lw=1)
-#         plt.title('first catalog, jPA=%4.3f deg'%(list_firstcatalog))
-#         # plt.title('measure by hand, jPA=%4.3f deg'%(list_firstcatalog))
-
-#     if list_vlass==1:
-#         plt.subplot(2,4,5)
-#         vlass.append(jPA(index-2, data='vlass', ringsize = 2.5, plott = False, plotf = False, plotsave = False, tablee = False, handmiddle = [], perc = 90, deg = 45,crop=crop_v))
-
-#     # if list_first==1:
-#     #     plt.subplot(2,4,3)
-#     #     plt.imshow(firstmeasurement)
-#     #     plt.axis('off')
-#     #     plt.title('first measurement')
-
-#     # if list_vlass==1:
-#     #     plt.subplot(2,4,7)
-#     #     plt.imshow(vlassmeasurement)
-#     #     plt.axis('off')
-#     #     plt.title('vlass measurement')
-
-#     plt.subplot(2,4,6)
-#     plt.imshow(opticalimg)
-#     plt.axis('off')
-#     plt.title('optical')
-
-#     if list_first==1:
-#         plt.subplot(2,4,7)
-#         plt.imshow(firstandoptical)
-#         plt.axis('off')
-#         plt.title('first and optical')
-
-#     if list_vlass==1:
-#         plt.subplot(2,4,8)
-#         plt.imshow(vlassandoptical)
-#         plt.axis('off')
-#         plt.title('vlass and optical')
-
-#     # plt.tight_layout()
-#     if savefig==True:plt.savefig('D:\\yenting\\results\\check_source\\e10_all\\ifu=%s_ra=%4.3f_dec=%4.3f_glue.jpg' %(list_plate,list_ra,list_dec))
-#     plt.show()
-#     plt.clf()
-
-#     print(nvss)
-#     if table == True:
-#         table = Table(np.array(nvss).T.tolist(), names=['plateifu','finalPA_avg','finalerr_avg','finalPA_max','finalerr_max'])
-#         ascii.write(table, 'D:\\yenting\\results\\check_source\\e10_all\\nvss.txt',overwrite=True)
-#         table = Table(np.array(first).T.tolist(), names=['plateifu','finalPA_avg','finalerr_avg','finalPA_max','finalerr_max'])
-#         ascii.write(table, 'D:\\yenting\\results\\check_source\\e10_all\\first.txt',overwrite=True)
-#         table = Table(np.array(vlass).T.tolist(), names=['plateifu','finalPA_avg','finalerr_avg','finalPA_max','finalerr_max'])
-#         ascii.write(table, 'D:\\yenting\\results\\check_source\\e10_all\\vlass.txt',overwrite=True)
-    
-#     print('finish %s'%(list_plate))
-
-#     return nvss,first,vlass
-
 def comparePA(plateifu,pa1,paerr1,pa2,paerr2,err1,err2):
     plt.figure(figsize = (15,5))
     for k,_ in enumerate(err1):
@@ -214,21 +110,21 @@ def comparePA(plateifu,pa1,paerr1,pa2,paerr2,err1,err2):
         plt.scatter(x,y)
         for i,ano in enumerate(anoplate):
             plt.annotate(ano, (anox[i],anoy[i]))
-
     plt.show()
 
-def comparePAdiff(PAdiff1, PAdiff2, label1, label2, title, parameter, ax, binnum=30, setticks=None, combine=False):
+def comparePAdiff(PAdiff1, PAdiff2, label1, label2, title, parameter, ax, binnum=30, binsize=None, setticks=None, combine=False):
     parameter1 = parameter[~np.isnan(PAdiff1)]
     parameter2 = parameter[~np.isnan(PAdiff2)]
-    print(parameter1)
-    print(parameter2)
     [dstat,pval] = stats.ks_2samp(parameter1, parameter2)
     if not combine:ax.text(0.05,0.1, r'D$_{KS}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
     ma=np.nanmax(np.concatenate((parameter1,parameter2)))
     mi=np.nanmin(np.concatenate((parameter1,parameter2)))
+    if binsize is not None : binnum=int((ma-mi)/binsize)
     if not combine:
-        ax.hist(parameter1,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label1+'\n'+r'$\mu$'+f'={np.nanmean(parameter1):.2f}, m={np.nanmedian(parameter1):.2f}')
-        ax.hist(parameter2,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label2+'\n'+r'$\mu$'+f'={np.nanmean(parameter2):.2f}, m={np.nanmedian(parameter2):.2f}')
+        asdf = ~np.isnan(parameter1)
+        asdf1 = np.count_nonzero(~np.isnan(parameter1))
+        ax.hist(parameter1,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label1+'\n'+r'$\mu$'+f'={np.nanmean(parameter1):.2f}, m={np.nanmedian(parameter1):.2f}, n={np.count_nonzero(~np.isnan(parameter1)):d}')
+        ax.hist(parameter2,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label2+'\n'+r'$\mu$'+f'={np.nanmean(parameter2):.2f}, m={np.nanmedian(parameter2):.2f}, n={np.count_nonzero(~np.isnan(parameter2)):d}')
     else:
         ax.hist(np.concatenate((parameter1,parameter2)),bins=np.linspace(mi,ma,binnum+1),alpha=0.5)
 
