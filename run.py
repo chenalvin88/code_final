@@ -2,9 +2,11 @@ import numpy as np
 from astropy.io import fits
 from astropy.table import Table, Column, MaskedColumn
 from astropy.io import ascii
+from astropy.stats import sigma_clip
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.backend_bases as bb
 from matplotlib.widgets import Slider, RangeSlider, Button, RadioButtons
 import math
@@ -99,6 +101,16 @@ binsnum = 5
 binsinit = np.linspace(0, 90, binsnum+1)
 apply = [True,True,False,False,False,False,False,False,False,False,False]
 result = None
+hand = [40,0.15]
+
+def optimize_hand(kPAerr,k51,k51err,kPAkin,kPAks,pn):
+    global opterr,optk51,errlim,k51lim,errmaxlist,k51maxlist,scorelist
+    opterr=hand[0]
+    optk51=hand[1]
+    PAdiff_out = findPAdiff(jPA_val,kPAkin)
+    PAdiff_out = newPAdiff(kPAerr,0,opterr,PAdiff_out)
+    PAdiff_out = np.array(newPAdiff(k51,0,optk51,PAdiff_out))
+    return PAdiff_out
 
 def optimize_score(kPAerr,k51,k51err,kPAkin,kPAks,pn):
     global opterr,optk51,errlim,k51lim,errmaxlist,k51maxlist,scorelist
@@ -125,9 +137,9 @@ def optimize_score(kPAerr,k51,k51err,kPAkin,kPAks,pn):
     PAdiff_out = np.array(newPAdiff(k51,0,optk51,PAdiff_out))
     return PAdiff_out
 
-def optimize_ranking(kPAerr,k51,k51err,kPAkin,kPAks,pn):
+def optimize_ranking_ellipse(kPAerr,k51,k51err,kPAkin,kPAks,pn):
     global errlim,k51lim,kPAerr_ranking,k51_ranking,rad_ranking
-    datanum = 70
+    datanum = 100
     errlim=np.nanpercentile(kPAerr,100)
     k51lim=np.nanpercentile(k51,100)
     # k51lim=np.nanmax([e for i,e in enumerate(k51) if e/k51err[i]>3])
@@ -146,6 +158,68 @@ def optimize_ranking(kPAerr,k51,k51err,kPAkin,kPAks,pn):
         assert len(index)<=datanum, 'not dense enough resolution'
     kPAkin_new = [e if i in index else np.nan for i,e in enumerate(kPAkin)]
     jPA_val_new = [e if i in index else np.nan for i,e in enumerate(jPA_val)]
+    PAdiff = np.array(findPAdiff(jPA_val_new,kPAkin_new))
+    return PAdiff
+
+def optimize_ranking_max(kPAerr,k51,k51err,kPAkin,kPAks,pn):
+    global kPAerr_ranking,k51_ranking
+    kPAerr_ranking,k51_ranking = np.copy(kPAerr),np.copy(k51)
+    index = []
+    datanum = 100
+    for i in range(int(datanum/2)):
+        index.append(np.nanargmax(kPAerr_ranking))
+        kPAerr_ranking[np.nanargmax(kPAerr_ranking)]=np.nan
+        index.append(np.nanargmax(k51_ranking))
+        k51_ranking[np.nanargmax(k51_ranking)]=np.nan
+    kPAkin_new = [e if i in index else np.nan for i,e in enumerate(kPAkin)]
+    jPA_val_new = [e if i in index else np.nan for i,e in enumerate(jPA_val)]
+    PAdiff = np.array(findPAdiff(jPA_val_new,kPAkin_new))
+    return PAdiff
+
+def optimize_ranking_clipping(kPAerr,k51,k51err,kPAkin,kPAks,pn):
+    global kPAerr_ranking,k51_ranking
+    sigma = 2
+    index = np.full_like(kPAerr,True,dtype=bool)
+    converge,count = np.inf,0
+    while True:
+        for i in range(len(kPAerr)):
+            if kPAerr[i]>np.nanmean(kPAerr[index])+sigma*np.nanstd(kPAerr[index]):
+                index[i]=False
+        count+=1
+        if converge==np.count_nonzero(index):break
+        converge=np.count_nonzero(index)
+        for i in range(len(kPAerr)):
+            if k51[i]>np.nanmean(k51[index])+sigma*np.nanstd(k51[index]):
+                index[i]=False
+        count+=1
+        if converge==np.count_nonzero(index):break
+        converge=np.count_nonzero(index)
+    print(f'takes {count} times until convergence of {converge} galaxies')
+    kPAerr_ranking = [e if index[i] else np.nan for i,e in enumerate(kPAerr)]
+    k51_ranking = [e if index[i] else np.nan for i,e in enumerate(k51)]
+    kPAkin_new = [e if index[i] else np.nan for i,e in enumerate(kPAkin)]
+    jPA_val_new = [e if index[i] else np.nan for i,e in enumerate(jPA_val)]
+    PAdiff = np.array(findPAdiff(jPA_val_new,kPAkin_new))
+    return PAdiff
+
+def optimize_ranking_percentage(kPAerr,k51,k51err,kPAkin,kPAks,pn):
+    global kPAerr_ranking,k51_ranking
+    perc = 90
+    index = np.full_like(kPAerr,True,dtype=bool)
+    datanum = 100
+    while True:
+        for i in range(len(kPAerr)):
+            if kPAerr[i]>np.nanpercentile(kPAerr[index],perc):
+                index[i]=False
+        if np.count_nonzero(index)<=datanum:break
+        for i in range(len(kPAerr)):
+            if k51[i]>np.nanpercentile(k51[index],perc):
+                index[i]=False
+        if np.count_nonzero(index)<=datanum:break
+    kPAerr_ranking = [e if index[i] else np.nan for i,e in enumerate(kPAerr)]
+    k51_ranking = [e if index[i] else np.nan for i,e in enumerate(k51)]
+    kPAkin_new = [e if index[i] else np.nan for i,e in enumerate(kPAkin)]
+    jPA_val_new = [e if index[i] else np.nan for i,e in enumerate(jPA_val)]
     PAdiff = np.array(findPAdiff(jPA_val_new,kPAkin_new))
     return PAdiff
 
@@ -229,7 +303,8 @@ def find_control_index(separate_criterion):
     return control_ind
 # find_control_index()
 
-def main(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,find_dependencies=True,control=True,optimize='scoring',directory='1113_1'):
+def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependencies=False,control=False,optimize='ranking_clipping',directory='1115_ranking_clipping_sigma2'):
+    assert optimize in ['hand','scoring','ranking_ellipse','ranking_max','ranking_clipping','ranking_percentage']
     if not frombuffer:
         rad,kPAkin,kPAerr,k51,k51err=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
         kPAks,pn=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
@@ -257,8 +332,12 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,find_dependenc
         kPAks=bufferdata.extract('kPAks',tofloat=True)
         pn=bufferdata.extract('pn',tofloat=True)
 
+    if optimize=='hand':PAdiff = optimize_hand(np.array(kPAerr),np.array(k51),np.array(k51err),np.array(kPAkin),np.array(kPAks),np.array(pn))
     if optimize=='scoring':PAdiff = optimize_score(np.array(kPAerr),np.array(k51),np.array(k51err),np.array(kPAkin),np.array(kPAks),np.array(pn))
-    if optimize=='ranking':PAdiff = optimize_ranking(np.array(kPAerr),np.array(k51),np.array(k51err),np.array(kPAkin),np.array(kPAks),np.array(pn))
+    if optimize=='ranking_ellipse':PAdiff = optimize_ranking_ellipse(np.array(kPAerr),np.array(k51),np.array(k51err),np.array(kPAkin),np.array(kPAks),np.array(pn))
+    if optimize=='ranking_max':PAdiff = optimize_ranking_max(np.array(kPAerr),np.array(k51),np.array(k51err),np.array(kPAkin),np.array(kPAks),np.array(pn))
+    if optimize=='ranking_clipping':PAdiff = optimize_ranking_clipping(np.array(kPAerr),np.array(k51),np.array(k51err),np.array(kPAkin),np.array(kPAks),np.array(pn))
+    if optimize=='ranking_percentage':PAdiff = optimize_ranking_percentage(np.array(kPAerr),np.array(k51),np.array(k51err),np.array(kPAkin),np.array(kPAks),np.array(pn))
 
     datanum = np.count_nonzero(~np.isnan(PAdiff))
     write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/all{kPA_range}.csv', 'w'))
@@ -288,17 +367,33 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,find_dependenc
         axes2[0][row].set_title(f'{kPA_range} $R_e$', fontsize=15)
         axes2[1][row].text(0.40, 0.95, 'kPA error', transform=axes2[1][row].transAxes)
         axes2[0][0].text(-0.05,0.45,r'$k_5/k_1$',rotation=90, transform=axes2[0][row].transAxes)
+        # axes2[0][row].scatter(kPAerr,k51)
+        # for i,txt in enumerate(findPAdiff(jPA_val,kPAkin)):
+        #     axes2[0][row].annotate(f'{txt:.0f}', (kPAerr[i], k51[i]))
+        # axes2[0][row].tricontour(kPAerr,k51,PAdiff)
+        divider = make_axes_locatable(axes2[0][row])
+        sc = axes2[0][row].scatter(kPAerr,k51,c=findPAdiff(jPA_val,kPAkin),cmap='Blues',s=15)
+        cax = divider.append_axes('right', size='5%', pad=0.)
+        fig2.colorbar(sc, cax=cax, orientation='vertical')
         if optimize=='scoring':
-            axes2[0][0].set_ylabel('scoring', fontsize=15)
+            axes2[0][0].set_ylabel('optimizing metric', fontsize=15)
+            axes2[0][row].axvline(opterr)
+            axes2[0][row].axhline(optk51)
             # axes2[0][0].yaxis.set_label_coords(-0.05,0.5)
-            axes2[0][row].clabel(axes2[0][row].tricontour(errmaxlist,k51maxlist,scorelist,30), inline=True, fontsize=10)
-            axes2[0][row].scatter(opterr,optk51)
-            axes2[0][row].annotate(f'max at ({opterr:.2f},{optk51:.2f})',(opterr+.1,optk51+.03))
-        if optimize=='ranking':
+            # axes2[0][row].clabel(axes2[0][row].tricontour(errmaxlist,k51maxlist,scorelist,30), inline=True, fontsize=10)
+            # axes2[0][row].scatter(opterr,optk51)
+            # axes2[0][row].annotate(f'max at ({opterr:.2f},{optk51:.2f})',(opterr+.1,optk51+.03))
+        if optimize=='hand':
+            axes2[0][0].set_ylabel('set limit by hand', fontsize=15)
+            axes2[0][row].axvline(hand[0])
+            axes2[0][row].axhline(hand[1])
+        if optimize=='ranking_ellipse':
             axes2[0][0].set_ylabel('ranking', fontsize=15)
             axes2[0][row].add_artist(Ellipse((0,0),2*rad_ranking*errlim,2*rad_ranking*k51lim,facecolor='none',edgecolor='red'))   
-            axes2[0][row].scatter(kPAerr,k51)
-            axes2[0][row].scatter(kPAerr_ranking,k51_ranking)
+            axes2[0][row].scatter(kPAerr_ranking,k51_ranking,s=3,c='r',alpha=0.5)
+        if optimize in ['ranking_max','ranking_clipping','ranking_percentage']:
+            axes2[0][0].set_ylabel('ranking', fontsize=15)
+            axes2[0][row].scatter(kPAerr_ranking,k51_ranking,s=3,c='r',alpha=0.5)
         axes2[2][row].text(0.40, 0.95, 'PA difference', transform=axes2[2][row].transAxes)
         axes2[1][0].set_ylabel('number of galaxies', fontsize=15)
         axes2[1][row].text(0.50, 0.85, '%d galaxies'%(datanum), fontsize=15, transform=axes2[1][row].transAxes)
@@ -310,6 +405,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,find_dependenc
         axes2[2][row].set_xlabel('angle',fontsize=13)
         fig2.tight_layout()
         fig2.subplots_adjust(hspace=0,wspace=0)
+        cax.yaxis.set_ticks_position('left')
 
     '''
     DAP data
@@ -345,8 +441,9 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,find_dependenc
     dn4000_specindex_all = np.array(data_all.extract(f'dn4000_specindex_{kPA_range}re',tofloat=True))
     hd_specindex_all = np.array(data_all.extract(f'hd_specindex_{kPA_range}re',tofloat=True))
     sfr_all = np.array(data_all.extract(f'sfr_{kPA_range}re',tofloat=True))
-    numofgal_all = np.array([1 if e==0 else e for e in data_all.extract('300kpc1500cz_count',tofloat=True)])
-    nearest_density_all = 5/np.array(data_all.extract('5th_kpc_1500cz',tofloat=True))**2
+    numofgal_all = np.array([count-1 if dist0<1 else count for count,dist0 in zip(data_all.extract('300kpc1500cz_count',tofloat=True),data_all.extract('0th_kpc_1500cz',tofloat=True))])
+    nearest_all = np.array([dist5 if dist0<1 else dist4 for dist4,dist5,dist0 in zip(data_all.extract('4th_kpc_1500cz',tofloat=True),data_all.extract('5th_kpc_1500cz',tofloat=True),data_all.extract('0th_kpc_1500cz',tofloat=True))])
+    nearest_density_all = 5/nearest_all**2
     gema_overdensity_all = np.array(data_all.extract('gema_overdensity',tofloat=True))
     mangaid_all = data_all.extract('identified_mangaid')
     stellarmass_r,o3_lum_r,ha_lum_r,dn4000_specindex_r,hd_specindex_r,sfr_r,numofgal,nearest_density,gema_overdensity = np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=float)
@@ -393,8 +490,8 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,find_dependenc
                 hd_specindex_control[i] = np.mean(hd_specindex_all[control_index_i])
                 sfr_control[i] = np.mean(sfr_all[control_index_i])
                 numofgal_control[i] = np.mean(numofgal_all[control_index_i])
-                nearest_density_control[i] = np.mean(nearest_density_all[control_index_i])
-                gema_overdensity_control[i] = np.mean(gema_overdensity_all[control_index_i])
+                nearest_density_control[i] = np.median(nearest_density_all[control_index_i])
+                gema_overdensity_control[i] = np.median(gema_overdensity_all[control_index_i])
         ssfr_control = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_control,10**(np.array(stellarmass_control)))])
         surface_mass_density_control = np.array([np.log10(mass/np.pi/(float(kPA_range)*re)**2) for (mass,re) in zip(10**(np.array(stellarmass_control)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
         blackholemass_control = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_control,stellar_sigma_1re)])
@@ -463,9 +560,10 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,find_dependenc
                 comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'OER/OER_control',oer_r/oer_control, ax=axes3_1[row][1][2])
                 comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axes3_1[row][2][1])
                 comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', o3_lum_r-o3_lum_control, radio_lum, 'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes3_1[row][2][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '(number of galaxies - nog_control) / number of galaxies',(numofgal-numofgal_control)/numofgal, ax=axes3_1[row][3][0])
-                axes3_1[row][3][1].set_xlim(-5,1)
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '(surface density - sd_control) / surface density',(nearest_density-nearest_density_control)/nearest_density, ax=axes3_1[row][3][1], binsize=0.2)
+                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '(number of galaxies - nog_control) / nog_control',(numofgal-numofgal_control)/numofgal_control, ax=axes3_1[row][3][0], std_dev=True)
+                axes3_1[row][3][1].set_xlim(-2,20)
+                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '(surface density - sd_control) / sd_control',(nearest_density-nearest_density_control)/nearest_density_control, ax=axes3_1[row][3][1], binsize=0.2, std_dev=True)
+                # axes3_1[row][3][2].scatter((numofgal-numofgal_control)/numofgal_control,(nearest_density-nearest_density_control)/nearest_density_control)
             if not control:
                 comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(Ha luminosity)',ha_lum_r, ax=axes3_1[row][0][2])
                 comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(sSFR)',ssfr_r, ax=axes3_1[row][1][0])
@@ -580,9 +678,9 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='5',ana=False,find_dependenc
                 comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'OER/OER_control',oer_r/oer_control, ax=axes5_1[row][1][2])
                 comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axes5_1[row][2][1])
                 comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', o3_lum_r-o3_lum_control, radio_lum, r'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes5_1[row][2][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '(number of galaxies - nog_control) / number of galaxies',(numofgal-numofgal_control)/numofgal, ax=axes5_1[row][3][0])
-                axes5_1[row][3][1].set_xlim(-5,1)
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '(surface density - sd_control) / (surface density)',(nearest_density-nearest_density_control)/nearest_density, ax=axes5_1[row][3][1],binsize=0.2)
+                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '(number of galaxies - nog_control) / nog_control',(numofgal-numofgal_control)/numofgal_control, ax=axes5_1[row][3][0], std_dev=True)
+                axes5_1[row][3][1].set_xlim(-2,20)
+                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '(surface density - sd_control) / sd_control',(nearest_density-nearest_density_control)/nearest_density_control, ax=axes5_1[row][3][1],binsize=0.2, std_dev=True)
             if not control:
                 comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(Ha luminosity)',ha_lum_r, ax=axes5_1[row][0][2])
                 comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(sSFR)',ssfr_r, ax=axes5_1[row][1][0])

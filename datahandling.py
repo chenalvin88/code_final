@@ -112,19 +112,22 @@ def comparePA(plateifu,pa1,paerr1,pa2,paerr2,err1,err2):
             plt.annotate(ano, (anox[i],anoy[i]))
     plt.show()
 
-def comparePAdiff(PAdiff1, PAdiff2, label1, label2, title, parameter, ax, binnum=30, binsize=None, setticks=None, combine=False):
+def comparePAdiff(PAdiff1, PAdiff2, label1, label2, title, parameter, ax, binnum=30, binsize=None, setticks=None, combine=False, std_dev=False):
     parameter1 = parameter[~np.isnan(PAdiff1)]
     parameter2 = parameter[~np.isnan(PAdiff2)]
     [dstat,pval] = stats.ks_2samp(parameter1, parameter2)
-    if not combine:ax.text(0.05,0.1, r'D$_{KS}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
+    # if not combine:ax.text(0.05,0.1, r'D$_{KS}$=%.2f,pval=%.2f'%(dstat,pval), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
+    if not combine:ax.text(0.05,0.1, r'p=%.2f'%(pval), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
     ma=np.nanmax(np.concatenate((parameter1,parameter2)))
     mi=np.nanmin(np.concatenate((parameter1,parameter2)))
     if binsize is not None : binnum=int((ma-mi)/binsize)
     if not combine:
-        asdf = ~np.isnan(parameter1)
-        asdf1 = np.count_nonzero(~np.isnan(parameter1))
-        ax.hist(parameter1,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label1+'\n'+r'$\mu$'+f'={np.nanmean(parameter1):.2f}, m={np.nanmedian(parameter1):.2f}, n={np.count_nonzero(~np.isnan(parameter1)):d}')
-        ax.hist(parameter2,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label2+'\n'+r'$\mu$'+f'={np.nanmean(parameter2):.2f}, m={np.nanmedian(parameter2):.2f}, n={np.count_nonzero(~np.isnan(parameter2)):d}')
+        if not std_dev:
+            ax.hist(parameter1,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label1+'\n'+r'$\mu$'+f'={np.nanmean(parameter1):.2f}, m={np.nanmedian(parameter1):.2f}, n={np.count_nonzero(~np.isnan(parameter1)):d}')
+            ax.hist(parameter2,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label2+'\n'+r'$\mu$'+f'={np.nanmean(parameter2):.2f}, m={np.nanmedian(parameter2):.2f}, n={np.count_nonzero(~np.isnan(parameter2)):d}')
+        if std_dev:
+            ax.hist(parameter1,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label1+'\n'+r'$\mu$'+f'={np.nanmean(parameter1):.2f}, m={np.nanmedian(parameter1):.2f}, n={np.count_nonzero(~np.isnan(parameter1)):d}'+r'$, \sigma=$'+f'{np.nanstd(parameter1):.2f}')
+            ax.hist(parameter2,bins=np.linspace(mi,ma,binnum+1),alpha=0.5,label=label2+'\n'+r'$\mu$'+f'={np.nanmean(parameter2):.2f}, m={np.nanmedian(parameter2):.2f}, n={np.count_nonzero(~np.isnan(parameter2)):d}'+r'$, \sigma=$'+f'{np.nanstd(parameter2):.2f}')
     else:
         ax.hist(np.concatenate((parameter1,parameter2)),bins=np.linspace(mi,ma,binnum+1),alpha=0.5)
 
@@ -139,10 +142,10 @@ def comparePAdiff_scatter(PAdiff1, PAdiff2, label1, label2, title, parameter1, p
     parameter2_label1=parameter2[~np.isnan(PAdiff1)]
     parameter1_label2=parameter1[~np.isnan(PAdiff2)]
     parameter2_label2=parameter2[~np.isnan(PAdiff2)]
-    [dstat,pval] = stats.ks_2samp(parameter1_label1, parameter2_label1)
-    ax.text(0.05,0.2, r'D$_{KS,x}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
-    [dstat,pval] = stats.ks_2samp(parameter1_label2, parameter2_label2)
-    ax.text(0.05,0.1, r'D$_{KS,y}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
+    # [dstat,pval] = stats.ks_2samp(parameter1_label1, parameter2_label1)
+    # ax.text(0.05,0.2, r'D$_{KS,x}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
+    # [dstat,pval] = stats.ks_2samp(parameter1_label2, parameter2_label2)
+    # ax.text(0.05,0.1, r'D$_{KS,y}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
     ax.scatter(parameter1_label1,parameter2_label1,c='r',label=label1)
     ax.scatter(parameter1_label2,parameter2_label2,c='b',label=label2)
     ax.set_xlabel(xlabel)
