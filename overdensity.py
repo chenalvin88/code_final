@@ -20,11 +20,13 @@ c = 299792.458 #km/sec
 zcriterion = czcriterion/c
 #print(zcriterion)
 
-data = filehandling('all_e8.csv')
-list_plate = data.extract('plateifu')
-list_ra = data.extract('OBJRA',tofloat=True)
-list_dec = data.extract('OBJDEC',tofloat=True)
-list_z = data.extract('Z',tofloat=True)
+data = filehandling('nsa_vagc_linRG.csv')
+# list_plate = data.extract('plateifu')
+# list_ra = data.extract('OBJRA',tofloat=True)
+# list_dec = data.extract('OBJDEC',tofloat=True)
+list_ra = data.extract('nsa_ra',tofloat=True)
+list_dec = data.extract('nsa_dec',tofloat=True)
+list_z = data.extract('nsa_z',tofloat=True)
 list_mangaid = data.extract('identified_mangaid')
 list_identified = [e for i,e in enumerate(data.extract('identified_mangaid')) if e!='nan' and e!='']
 
@@ -36,7 +38,7 @@ z = vagc[1].data['z']
 
 def find_old(manga_id):
     diff = kpccriterion*u.kpc/cosmo.kpc_proper_per_arcmin(list_z[i]) #range of kpccriterion kpc
-    print(list_plate[i],diff,cosmo.kpc_proper_per_arcmin(list_z[i]))
+    # print(list_plate[i],diff,cosmo.kpc_proper_per_arcmin(list_z[i]))
     # object = SkyCoord(ra=list_ra[i]*u.degree, dec=list_dec[i]*u.degree, distance=cosmo.comoving_distance(list_z[i]), frame='icrs')
     object = SkyCoord(ra=list_ra[i]*u.degree, dec=list_dec[i]*u.degree, frame='icrs')
     count = 0
@@ -83,7 +85,7 @@ def find(i,density_method):
 
 # for i in range(2,100):
 if __name__ == '__main__':
-    density_method = 'nth'
+    density_method = 'both'
     assert density_method in ['fixed','nth','both']
     plateifu, count, distance, nth_distance, nth_redshift = [],[],[],[],[]
     for id in tqdm(list_identified):
@@ -96,7 +98,7 @@ if __name__ == '__main__':
         nth_redshift.append(out[4])
         if density_method == 'both':
             table = Table([plateifu,count,distance,nth_distance,nth_redshift], names=['plateifu','count in aperture','distance(kpc)','nth distance','nth redsuift difference'])
-            ascii.write(table, f'./bufferforfile/{kpccriterion}kpc{czcriterion}cz_6nearest.csv',overwrite=True)
+            ascii.write(table, f'./bufferforfile/{kpccriterion}kpc{czcriterion}cz_6nearest_nsaRQs.csv',overwrite=True)
         if density_method == 'fixed':
             table = Table([plateifu,count,distance], names=['plateifu','count in aperture','distance(kpc)'])
             ascii.write(table, f'./bufferforfile/{kpccriterion}kpc{czcriterion}cz.csv',overwrite=True)
