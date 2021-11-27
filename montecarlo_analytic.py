@@ -107,7 +107,7 @@ def one_analyticmc(phi_in,debug=False,plot=False):
 # plt.plot(np.degrees(np.linspace(0.0, np.pi, length)),result)
 # plt.show()
 
-def analyticmc(data,ax):
+def analyticmc(data,ax,rticks=True):
     alist = np.linspace(0.0, np.pi/2, int(length/2))
     result = np.zeros_like(alist)
     print('finding analytic result...')
@@ -116,6 +116,12 @@ def analyticmc(data,ax):
             result+=one_analyticmc(element)
     result/=np.count_nonzero(~np.isnan(data))
     ax.plot(np.degrees(alist),result)
+    random3d = np.sin(alist)*(np.pi/180)
+    ax.plot(np.degrees(alist),random3d,c='k')
+    ax_right = ax.twinx()
+    ax_right.plot(np.degrees(alist),result/random3d,c='k',linestyle='dashed')
+    ax_right.set_ylim(0,6)
+    if not rticks : ax_right.set_yticklabels([])
     ax.set_yticklabels(ax.get_yticks(),rotation=45)
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
     # plt.show()

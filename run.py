@@ -178,7 +178,7 @@ def optimize_ranking_max(kPAerr,k51,k51err,kPAkin,kPAks,pn):
 
 def optimize_ranking_clipping(kPAerr,k51,k51err,kPAkin,kPAks,pn):
     global kPAerr_ranking,k51_ranking
-    sigma = 2
+    sigma = 3
     index = np.full_like(kPAerr,True,dtype=bool)
     converge,count = np.inf,0
     while True:
@@ -303,7 +303,7 @@ def find_control_index(separate_criterion):
     return control_ind
 # find_control_index()
 
-def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependencies=False,control=False,optimize='ranking_clipping',directory='1115_ranking_clipping_sigma2'):
+def main(row,kPA_range,binsnum,frombuffer=True,plot='345',ana=False,find_dependencies=True,control=True,optimize='scoring',directory='1123'):
     assert optimize in ['hand','scoring','ranking_ellipse','ranking_max','ranking_clipping','ranking_percentage']
     if not frombuffer:
         rad,kPAkin,kPAerr,k51,k51err=np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
@@ -401,7 +401,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes2[1][row].bar(bins[:-1]+45/binsnum,hist, width=90/binsnum,color='green',alpha=0.6)
         axes2[1][row].set_xlim(0,90)
         axes2[2][0].set_ylabel('3D angle probability', fontsize=15)
-        if ana:analyticmc(PAdiff,ax=axes2[2][row])
+        if ana:analyticmc(PAdiff,ax=axes2[2][row],rticks=row==2)
         axes2[2][row].set_xlabel('angle',fontsize=13)
         fig2.tight_layout()
         fig2.subplots_adjust(hspace=0,wspace=0)
@@ -497,6 +497,38 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         blackholemass_control = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_control,stellar_sigma_1re)])
         oer_control = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_control,blackholemass_control)])
     
+    def dependencies(name,axis):
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', f'{name} from pipe 3d', stellarmass_r, ax=axis[0][0])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'sersic index n', nsa_sersic_n, ax=axis[0][1])
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'radio_morphology',radio_morphology, ax=axis[2][0],binnum=4, setticks=[])
+        axis[2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
+        axis[2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
+        unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy1))], return_counts=True)
+        bin1 = dict(zip(unique, counts))
+        unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy2))], return_counts=True)
+        bin2 = dict(zip(unique, counts))
+        comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'log(overdensity from GEMA)',np.log10(gema_overdensity), ax=axis[3][2])
+        if control:
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'log(Ha luminosity) - log(Ha luminosity)_control',ha_lum_r-ha_lum_control, ax=axis[0][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axis[1][0])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axis[1][1])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'OER/OER_control',oer_r/oer_control, ax=axis[1][2])
+            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axis[2][1])
+            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', '', o3_lum_r-o3_lum_control, radio_lum, 'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axis[2][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', '(number of galaxies - nog_control) / nog_control',(numofgal-numofgal_control)/numofgal_control, ax=axis[3][0], std_dev=True)
+            axis[3][1].set_xlim(-2,20)
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', '(surface density - sd_control) / sd_control',(nearest_density-nearest_density_control)/nearest_density_control, ax=axis[3][1], binsize=0.2, std_dev=True)
+            # axis[3][2].scatter((numofgal-numofgal_control)/numofgal_control,(nearest_density-nearest_density_control)/nearest_density_control)
+        if not control:
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'log(Ha luminosity)',ha_lum_r, ax=axis[0][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'log(sSFR)',ssfr_r, ax=axis[1][0])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'stellar surface mass density',surface_mass_density_r, ax=axis[1][1])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'OER',oer_r, ax=axis[1][2])
+            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', '', dn4000_specindex_r,hd_specindex_r, r'D$_n$(4000)', r'HDelta$_A$', axis[2][1])
+            comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', '', o3_lum_r, radio_lum, 'log(O[III] luminosity)', r'log($P_{1.4GHz}$)', axis[2][2])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'number of galaxies',numofgal, ax=axis[3][0])
+            comparePAdiff(PAdiff_copy1, PAdiff_copy2, f'low {name}', f'high {name}', 'surface density',nearest_density, ax=axis[3][1])
+    
     if '3' in plot:
         global fig3,axes3
         if row==0:fig3,axes3=plt.subplots(4,3,figsize=(4*3,10),sharey='row',sharex='col')
@@ -511,7 +543,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes3[0][row].text(0.95,0.95, f'low stellar mass < {cut:.2f}\n{datanum1} galaxies', fontsize=13, transform=axes3[0][row].transAxes, horizontalalignment='right',verticalalignment='top')
         axes3[0][0].set_ylabel('number of galaxies',fontsize=13)
         axes3[1][0].set_ylabel('3D angle probability',fontsize=13)
-        if ana:analyticmc(PAdiff_copy1,ax=axes3[1][row])
+        if ana:analyticmc(PAdiff_copy1,ax=axes3[1][row],rticks=row==2)
         
         PAdiff_copy2=np.copy(PAdiff)
         PAdiff_copy2 = newPAdiff(stellarmass,cut,np.inf,PAdiff_copy2)
@@ -523,7 +555,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes3[2][0].set_ylabel('number of galaxies',fontsize=13)
         axes3[3][row].set_xlabel('angle',fontsize=13)
         axes3[3][0].set_ylabel('3D angle probability',fontsize=13)
-        if ana:analyticmc(PAdiff_copy2,ax=axes3[3][row])
+        if ana:analyticmc(PAdiff_copy2,ax=axes3[3][row],rticks=row==2)
         fig3.tight_layout()
         fig3.subplots_adjust(hspace=0,wspace=0)
 
@@ -543,36 +575,9 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
             write.writerow(['low stellar mass','PA difference','stellar mass','high stellar mass','PA difference','stellar mass'])
             for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],stellarmass_r[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]],stellarmass_r[~np.isnan(PAdiff_copy2)]):
                 write.writerow(values)
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'stellar mass from pipe 3d', stellarmass_r, ax=axes3_1[row][0][0])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'sersic index n', nsa_sersic_n, ax=axes3_1[row][0][1])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'radio_morphology',radio_morphology, ax=axes3_1[row][2][0],binnum=4, setticks=[])
-            axes3_1[row][2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            axes3_1[row][2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy1))], return_counts=True)
-            bin1 = dict(zip(unique, counts))
-            unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy2))], return_counts=True)
-            bin2 = dict(zip(unique, counts))
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(overdensity from GEMA)',np.log10(gema_overdensity), ax=axes3_1[row][3][2])
-            if control:
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(Ha luminosity) - log(Ha luminosity)_control',ha_lum_r-ha_lum_control, ax=axes3_1[row][0][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axes3_1[row][1][0])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axes3_1[row][1][1])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'OER/OER_control',oer_r/oer_control, ax=axes3_1[row][1][2])
-                comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axes3_1[row][2][1])
-                comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', o3_lum_r-o3_lum_control, radio_lum, 'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes3_1[row][2][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '(number of galaxies - nog_control) / nog_control',(numofgal-numofgal_control)/numofgal_control, ax=axes3_1[row][3][0], std_dev=True)
-                axes3_1[row][3][1].set_xlim(-2,20)
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '(surface density - sd_control) / sd_control',(nearest_density-nearest_density_control)/nearest_density_control, ax=axes3_1[row][3][1], binsize=0.2, std_dev=True)
-                # axes3_1[row][3][2].scatter((numofgal-numofgal_control)/numofgal_control,(nearest_density-nearest_density_control)/nearest_density_control)
-            if not control:
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(Ha luminosity)',ha_lum_r, ax=axes3_1[row][0][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'log(sSFR)',ssfr_r, ax=axes3_1[row][1][0])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'stellar surface mass density',surface_mass_density_r, ax=axes3_1[row][1][1])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'OER',oer_r, ax=axes3_1[row][1][2])
-                comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', dn4000_specindex_r,hd_specindex_r, r'D$_n$(4000)', r'HDelta$_A$', axes3_1[row][2][1])
-                comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', '', o3_lum_r, radio_lum, 'log(O[III] luminosity)', r'log($P_{1.4GHz}$)', axes3_1[row][2][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'number of galaxies',numofgal, ax=axes3_1[row][3][0])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar mass', 'high stellar mass', 'surface density',nearest_density, ax=axes3_1[row][3][1])
+            # name='stellar mass'
+            # axis=axes3_1[row]
+            dependencies(name='stellar mass',axis=axes3_1[row])
             fig3_1[row].tight_layout()
 
     if '4' in plot:
@@ -589,7 +594,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes4[0][row].text(0.95,0.95, f'low halo mass < {cut:.2f}\n{datanum} galaxies', fontsize=13, transform=axes4[0][row].transAxes, horizontalalignment='right',verticalalignment='top')
         axes4[0][0].set_ylabel('number of galaxies',fontsize=13)
         axes4[1][0].set_ylabel('3D angle probability',fontsize=13)
-        if ana:analyticmc(PAdiff_copy,ax=axes4[1][row])
+        if ana:analyticmc(PAdiff_copy,ax=axes4[1][row],rticks=row==2)
         
         PAdiff_copy=np.copy(PAdiff)
         PAdiff_copy = newPAdiff(halomass,cut,np.inf,PAdiff_copy)
@@ -601,9 +606,20 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes4[2][0].set_ylabel('number of galaxies',fontsize=13)
         axes4[3][row].set_xlabel('angle',fontsize=13)
         axes4[3][0].set_ylabel('3D angle probability',fontsize=13)
-        if ana:analyticmc(PAdiff_copy,ax=axes4[3][row])
+        if ana:analyticmc(PAdiff_copy,ax=axes4[3][row],rticks=row==2)
         fig4.tight_layout()
         fig4.subplots_adjust(hspace=0,wspace=0)
+
+        if find_dependencies:
+            global fig4_1,axes4_1
+            fig4_1,axes4_1=[[],[],[]],[[],[],[]]
+            fig4_1[row],axes4_1[row]=plt.subplots(4,3,figsize=(5*3,13))
+            write = csv.writer(open(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/halomass{kPA_range}.csv', 'w'))
+            write.writerow(['low halo mass','PA difference','high halo mass','PA difference'])
+            for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]]):
+                write.writerow(values)
+            dependencies(name='halo mass',axis=axes4_1[row])
+            fig4_1[row].tight_layout()
 
     if '5' in plot:
         global fig5,axes5
@@ -619,7 +635,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes5[0][row].text(0.95,0.95, f'low stellar velocity\ndispersion < {cut:.2f}km/s\n{datanum} galaxies', fontsize=13, transform=axes5[0][row].transAxes, horizontalalignment='right',verticalalignment='top')
         axes5[0][0].set_ylabel('number of galaxies',fontsize=13)
         axes5[1][0].set_ylabel('3D angle probability',fontsize=13)
-        if ana:analyticmc(PAdiff_copy1,ax=axes5[1][row])
+        if ana:analyticmc(PAdiff_copy1,ax=axes5[1][row],rticks=row==2)
         
         PAdiff_copy2=np.copy(PAdiff)
         PAdiff_copy2 = newPAdiff(stellar_sigma_1re,cut,np.inf,PAdiff_copy2)
@@ -631,29 +647,11 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes5[2][0].set_ylabel('number of galaxies',fontsize=13)
         axes5[3][row].set_xlabel('angle',fontsize=13)
         axes5[3][0].set_ylabel('3D angle probability',fontsize=13)
-        if ana:analyticmc(PAdiff_copy2,ax=axes5[3][row])
+        if ana:analyticmc(PAdiff_copy2,ax=axes5[3][row],rticks=row==2)
         fig5.tight_layout()
         fig5.subplots_adjust(hspace=0,wspace=0)
 
         if find_dependencies:
-            # control group
-            stellarmass_control,o3_lum_control,ha_lum_control,dn4000_specindex_control,hd_specindex_control,sfr_control = np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=float),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object),np.full_like(plateifu,np.nan,dtype=object)
-            control_index = find_control_index(separate_criterion='svd')
-            for i,e in enumerate(plateifu):
-                control_index_i = np.array(list(filter(lambda a: ~np.isnan(a), control_index[i])))
-                if not np.isnan(control_index[i][0]) and len(control_index_i)>2:
-                    control_index_i = np.array(list(filter(lambda a: ~np.isnan(a), control_index[i])))
-                    stellarmass_control[i] = np.log10(np.mean(10**np.array(stellarmass_all[control_index_i])))
-                    o3_lum_control[i] = np.log10(np.mean(10**np.array(o3_lum_all[control_index_i])))
-                    ha_lum_control[i] = np.log10(np.mean(10**np.array(ha_lum_all[control_index_i])))
-                    dn4000_specindex_control[i] = np.mean(dn4000_specindex_all[control_index_i])
-                    hd_specindex_control[i] = np.mean(hd_specindex_all[control_index_i])
-                    sfr_control[i] = np.mean(sfr_all[control_index_i])
-            ssfr_control = np.array([np.log10(sfr/sm) for (sfr,sm) in zip(sfr_control,10**(np.array(stellarmass_control)))])
-            surface_mass_density_control = np.array([np.log10(mass/np.pi/(float(kPA_range)*re)**2) for (mass,re) in zip(10**(np.array(stellarmass_control)),data.extract('NSA_ELPETRO_TH50_R',tofloat=True))])
-            blackholemass_control = np.array([10**(8.13+4.02*np.log10(sig/200))/1e8 for (lum,sig) in zip(o3_lum_control,stellar_sigma_1re)])
-            oer_control = np.array([np.log10(10**(lum)/(1.28*1e46*bhm)) for (lum,bhm) in zip(o3_lum_control,blackholemass_control)])
-
             global fig5_1,axes5_1
             fig5_1,axes5_1=[[],[],[]],[[],[],[]]
             fig5_1[row],axes5_1[row]=plt.subplots(4,3,figsize=(5*3,13))
@@ -661,35 +659,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
             write.writerow(['low stellar velocity dispersion','PA difference','high stellar velocity dispersion','PA difference'])
             for values in zip_longest(*[plateifu[~np.isnan(PAdiff_copy1)],PAdiff_copy1[~np.isnan(PAdiff_copy1)],plateifu[~np.isnan(PAdiff_copy2)],PAdiff_copy2[~np.isnan(PAdiff_copy2)]]):
                 write.writerow(values)
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, '', '', 'stellar velocity dispersion', stellar_sigma_1re, ax=axes5_1[row][0][0], combine=False)
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'sersic index n', nsa_sersic_n, ax=axes5_1[row][0][1])
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'radio_morphology',radio_morphology, ax=axes5_1[row][2][0],binnum=4, setticks=[])
-            axes5_1[row][2][0].text(1.15,-0.05, 'FR1', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            axes5_1[row][2][0].text(1.85,-0.05, 'FR2', fontsize=13, horizontalalignment='center',verticalalignment='top')
-            unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy1))], return_counts=True)
-            bin1 = dict(zip(unique, counts))
-            unique, counts = np.unique(radio_morphology[(~np.isnan(PAdiff_copy2))], return_counts=True)
-            bin2 = dict(zip(unique, counts))
-            comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(overdensity from GEMA)',np.log10(gema_overdensity), ax=axes5_1[row][3][2])
-            if control:
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(Ha luminosity) - log(Ha luminosity)_control',ha_lum_r-ha_lum_control, ax=axes5_1[row][0][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(sSFR)-log(sSFR_control)',ssfr_r-ssfr_control, ax=axes5_1[row][1][0])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'stellar surface mass density / ssmd_control',surface_mass_density_r/surface_mass_density_control, ax=axes5_1[row][1][1])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'OER/OER_control',oer_r/oer_control, ax=axes5_1[row][1][2])
-                comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', dn4000_specindex_r/dn4000_specindex_control,hd_specindex_r-hd_specindex_control, r'D$_n$(4000)/D$_n$(4000)_control', r'HDelta$_A$-HDelta$_A$_control', axes5_1[row][2][1])
-                comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', o3_lum_r-o3_lum_control, radio_lum, r'log(O[III] luminosity) - log(O[III] luminosity)_control', r'log($P_{1.4GHz}$)', axes5_1[row][2][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '(number of galaxies - nog_control) / nog_control',(numofgal-numofgal_control)/numofgal_control, ax=axes5_1[row][3][0], std_dev=True)
-                axes5_1[row][3][1].set_xlim(-2,20)
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '(surface density - sd_control) / sd_control',(nearest_density-nearest_density_control)/nearest_density_control, ax=axes5_1[row][3][1],binsize=0.2, std_dev=True)
-            if not control:
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(Ha luminosity)',ha_lum_r, ax=axes5_1[row][0][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'log(sSFR)',ssfr_r, ax=axes5_1[row][1][0])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'stellar surface mass density',surface_mass_density_r, ax=axes5_1[row][1][1])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'OER',oer_r, ax=axes5_1[row][1][2])
-                comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', dn4000_specindex_r,hd_specindex_r, r'D$_n$(4000)', r'HDelta$_A$', axes5_1[row][2][1])
-                comparePAdiff_scatter(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', '', o3_lum_r, radio_lum, r'log(O[III] luminosity)', r'log($P_{1.4GHz}$)', axes5_1[row][2][2])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'number of galaxies',numofgal, ax=axes5_1[row][3][0])
-                comparePAdiff(PAdiff_copy1, PAdiff_copy2, 'low stellar velocity dispersion', 'high stellar velocity dispersion', 'surface density',nearest_density, ax=axes5_1[row][3][1])
+            dependencies(name='stellar velocity dispersion',axis=axes5_1[row])
             fig5_1[row].tight_layout()
 
     if '6' in plot and kPA_range=='0.3':
@@ -737,22 +707,22 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes6[3][1].set_xlabel('angle',fontsize=13)
         if ana:analyticmc(PAdiff_copy,ax=axes6[3][1])
 
-        cut = np.nanmedian([e for i,e in enumerate(nearest) if not np.isnan(PAdiff[i])])
+        cut = np.nanmedian([e for i,e in enumerate(nearest_density) if not np.isnan(PAdiff[i])])
         PAdiff_copy=np.copy(PAdiff)
-        PAdiff_copy = newPAdiff(nearest,cut,np.inf,PAdiff_copy)
+        PAdiff_copy = newPAdiff(nearest_density,cut,np.inf,PAdiff_copy)
         datanum = np.count_nonzero(~np.isnan(PAdiff_copy))
         hist, bins = np.histogram([x for x in PAdiff_copy if not np.isnan(x)],bins=binsinit)
         axes6[0][2].set_title(f'{kPA_range} $R_e$', fontsize=15)
         axes6[0][2].bar(bins[:-1]+45/binsnum,hist, width=90/binsnum,color='green',alpha=0.6)
-        axes6[0][2].text(0.95,0.95, f'distance to 5th nearest\ngalaxy > {cut:.2f}kpc\n{datanum} galaxies', fontsize=13, transform=axes6[0][2].transAxes, horizontalalignment='right',verticalalignment='top')
+        axes6[0][2].text(0.95,0.95, f'surface density > {cut:.2E}\n{datanum} galaxies', fontsize=13, transform=axes6[0][2].transAxes, horizontalalignment='right',verticalalignment='top')
         if ana:analyticmc(PAdiff_copy,ax=axes6[1][2])
 
         PAdiff_copy=np.copy(PAdiff)
-        PAdiff_copy = newPAdiff(nearest,0,cut,PAdiff_copy)
+        PAdiff_copy = newPAdiff(nearest_density,0,cut,PAdiff_copy)
         datanum = np.count_nonzero(~np.isnan(PAdiff_copy))
         hist, bins = np.histogram([x for x in PAdiff_copy if not np.isnan(x)],bins=binsinit)
         axes6[2][2].bar(bins[:-1]+45/binsnum,hist, width=90/binsnum,color='green',alpha=0.6)
-        axes6[2][2].text(0.95,0.95, f'distance to 5th nearest\ngalaxy < {cut:.2f}kpc\n{datanum} galaxies', fontsize=13, transform=axes6[2][2].transAxes, horizontalalignment='right',verticalalignment='top')
+        axes6[2][2].text(0.95,0.95, f'surface density < {cut:.2E}\n{datanum} galaxies', fontsize=13, transform=axes6[2][2].transAxes, horizontalalignment='right',verticalalignment='top')
         axes6[3][2].set_xlabel('angle',fontsize=13)
         if ana:analyticmc(PAdiff_copy,ax=axes6[3][2])
         fig6.tight_layout()
@@ -827,7 +797,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
         axes8[0][2].set_title('distance')
         axes8[row][3].scatter(PAdiff,numofgal)
         axes8[0][3].set_title('numofgal')
-        axes8[row][4].scatter(PAdiff,nearest)
+        axes8[row][4].scatter(PAdiff,nearest_density)
         axes8[0][4].set_title('nearest')
         axes8[row][5].scatter(PAdiff,bcg)
         axes8[0][5].set_title('bcg')
@@ -842,6 +812,7 @@ def main(row,kPA_range,binsnum,frombuffer=True,plot='235',ana=True,find_dependen
     
     if find_dependencies:
         if '3' in plot:fig3_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure3_1_{kPA_range}Re.png')
+        if '4' in plot:fig4_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure4_1_{kPA_range}Re.png')
         if '5' in plot:fig5_1[row].savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure5_1_{kPA_range}Re.png')
     if row==2:
         if '1' in plot:fig1.savefig(f'/Volumes/SDrive/yenting_pa_alignment/results/for_yt/{directory}/figure1.png')

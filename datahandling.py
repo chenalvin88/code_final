@@ -142,10 +142,16 @@ def comparePAdiff_scatter(PAdiff1, PAdiff2, label1, label2, title, parameter1, p
     parameter2_label1=parameter2[~np.isnan(PAdiff1)]
     parameter1_label2=parameter1[~np.isnan(PAdiff2)]
     parameter2_label2=parameter2[~np.isnan(PAdiff2)]
-    # [dstat,pval] = stats.ks_2samp(parameter1_label1, parameter2_label1)
+    # index1 = ~np.isnan(parameter1_label1)#&~np.isnan(parameter2_label1)
+    # index2 = ~np.isnan(parameter1_label2)#&~np.isnan(parameter2_label2)
+    # asdf1,asdf2 = parameter1_label1[index1],parameter2_label1[index1]
+    # asdf3,asdf4 = parameter1_label2[index2],parameter2_label2[index2]
+    # [dstat,pval] = stats.spearmanr(np.array([parameter1_label1[index1],parameter2_label1[index1]]), np.array([parameter1_label2[index2],parameter2_label2[index2]]))
     # ax.text(0.05,0.2, r'D$_{KS,x}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
+    # [dstat,pval] = stats.ks_2samp(parameter1_label1, parameter2_label1)
+    # ax.text(0.05,0.2, r'p=%.2f'%(pval), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
     # [dstat,pval] = stats.ks_2samp(parameter1_label2, parameter2_label2)
-    # ax.text(0.05,0.1, r'D$_{KS,y}$=%.2f'%(dstat), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
+    # ax.text(0.05,0.1, r'p=%.2f'%(pval), fontsize=13, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
     ax.scatter(parameter1_label1,parameter2_label1,c='r',label=label1)
     ax.scatter(parameter1_label2,parameter2_label2,c='b',label=label2)
     ax.set_xlabel(xlabel)
