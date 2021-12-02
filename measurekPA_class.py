@@ -261,7 +261,7 @@ def kPA(plateifu, data, source,re_criterion_list=[1,0.5,0.3],plot=True,snthresho
             output.extend([PA,dstat,pval,pxl,countgoodpix])
         if measure=='Kinemetry':
             pix = np.nanmin([re_criterion*p50/0.5,data[(plateifu,'nomial FOV radius (arcsec)','float')]*np.sqrt(3)])
-            if not binning:k = kinemetry(xbin=X[index_kin], ybin=Y[index_kin], moment=V_map[index_kin], error=np.sqrt(1/V_ivar[index_kin]), scale=0.5, radius=np.full(3,pix), cover=0.0, plot=True)
+            if not binning:k = kinemetry(xbin=X[index_kin], ybin=Y[index_kin], moment=V_map[index_kin], error=np.sqrt(1/V_ivar[index_kin]), scale=0.5, radius=np.full(3,pix), cover=0.0, plot=False)
             if binning:k = kinemetry(xbin=xBin, ybin=yBin, moment=V_mapBin, scale=0.5, radius=np.full(3,pix), cover=0.0, plot=False)
             PA,angErr,vSyst = -k.pa[0]%180,k.er_pa[0],k.vsys
             k0 = k.cf[:,0]

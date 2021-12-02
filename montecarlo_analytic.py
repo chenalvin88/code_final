@@ -120,6 +120,8 @@ def analyticmc(data,ax,rticks=True):
     ax.plot(np.degrees(alist),random3d,c='k')
     ax_right = ax.twinx()
     ax_right.plot(np.degrees(alist),result/random3d,c='k',linestyle='dashed')
+    integrate = np.nansum((result/random3d)[:int(30/90*len(alist))])/np.nansum((result/random3d))
+    ax.text(0.1,0.9, f'{integrate*100:.2f}%\n'+r'below 30$\degree$', fontsize=17, transform=ax.transAxes, horizontalalignment='left',verticalalignment='top')
     ax_right.set_ylim(0,6)
     if not rticks : ax_right.set_yticklabels([])
     ax.set_yticklabels(ax.get_yticks(),rotation=45)
@@ -127,7 +129,7 @@ def analyticmc(data,ax,rticks=True):
     # plt.show()
     return result
 
-# result=analyticmc([30])
+# result=analyticmc([30],ax=plt.gca())
 # print(result)
 # plt.plot(np.degrees(np.linspace(0.0, np.pi/2, int(length/2))),result)
 # plt.show()
